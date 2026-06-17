@@ -17,7 +17,7 @@
   .carte p.aide{margin:0 0 16px;font-size:13px;color:var(--doux);line-height:1.5;}
   .champ{margin-bottom:14px;}
   .champ label{display:block;font-size:13px;font-weight:600;margin-bottom:5px;}
-  .champ input{width:100%;padding:10px 12px;border:1px solid var(--bordure);border-radius:8px;font-size:14px;}
+  .champ input,.champ select{width:100%;padding:10px 12px;border:1px solid var(--bordure);border-radius:8px;font-size:14px;}
   .note{font-size:12px;color:var(--doux);margin-top:4px;}
   button{cursor:pointer;border:none;border-radius:8px;padding:11px 18px;font-size:14px;font-weight:600;}
   .btn-vert{background:var(--vert);color:#fff;}
@@ -27,11 +27,13 @@
   .etat{padding:3px 9px;border-radius:20px;font-size:12px;font-weight:600;}
   .etat.on{background:#e7f6ec;color:#16a34a;}
   .etat.off{background:#fde8e8;color:#dc2626;}
-  .msg{margin-top:12px;font-size:14px;min-height:20px;}
+  .msg{margin-top:12px;font-size:14px;min-height:20px;white-space:pre-wrap;}
   details{margin-top:10px;}
   summary{cursor:pointer;font-weight:600;font-size:14px;color:var(--vert);}
   ol{font-size:13.5px;line-height:1.7;color:#374151;}
   code{background:#eef0f2;padding:1px 5px;border-radius:4px;font-size:12.5px;}
+  .reco{display:inline-block;background:#e7f6ec;color:#16a34a;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:6px;}
+  .bloc{border:1px solid var(--bordure);border-radius:10px;padding:16px;margin-top:12px;}
 </style>
 </head>
 <body>
@@ -44,7 +46,7 @@
 
   <div class="carte">
     <h2>1. Accès administrateur</h2>
-    <p class="aide">Un code protège cette page de configuration. À la première utilisation, choisissez votre code. Ensuite, il sera demandé pour toute modification.</p>
+    <p class="aide">Un code protège cette page. À la première utilisation, choisissez votre code. Ensuite, il sera demandé pour toute modification.</p>
     <div class="champ">
       <label>Code administrateur</label>
       <input type="password" id="adminCode" placeholder="Votre code secret">
@@ -65,37 +67,49 @@
     </div>
     <div class="champ">
       <label>Numéro WhatsApp destinataire (avec indicatif pays)</label>
-      <input id="whatsappDest" placeholder="+241 06 00 00 00">
+      <input id="whatsappDest" placeholder="+24106000000">
       <div class="note">Format international, ex : <code>+24106000000</code></div>
     </div>
   </div>
 
   <div class="carte">
-    <h2>3. Service d'envoi WhatsApp (Twilio) <span class="etat off" id="etatTwilio">non configuré</span></h2>
-    <p class="aide">Twilio est le « facteur » qui envoie le message WhatsApp. Créez un compte gratuit, puis copiez ici les 3 informations. Le bouton ci-dessous explique chaque étape.</p>
+    <h2>3. Méthode d'envoi WhatsApp <span class="etat off" id="etatEnvoi">non configuré</span></h2>
     <div class="champ">
-      <label>Twilio — Account SID</label>
-      <input id="twilioSid" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+      <label>Choisir la méthode</label>
+      <select id="methode" onchange="majMethode()">
+        <option value="callmebot">CallMeBot — gratuit (recommandé)</option>
+        <option value="twilio">Twilio — professionnel (payant)</option>
+      </select>
     </div>
-    <div class="champ">
-      <label>Twilio — Auth Token</label>
-      <input type="password" id="twilioToken" placeholder="(laisser vide pour ne pas changer)">
+
+    <!-- CallMeBot -->
+    <div class="bloc" id="blocCallmebot">
+      <h2 style="font-size:15px;">CallMeBot <span class="reco">GRATUIT</span></h2>
+      <p class="aide">Idéal pour s'envoyer le récap à soi-même. Il faut activer une seule fois la clé API depuis votre WhatsApp.</p>
+      <div class="champ">
+        <label>Clé API CallMeBot</label>
+        <input type="password" id="callmebotApikey" placeholder="(laisser vide pour ne pas changer)">
+        <div class="note">Le récap sera envoyé sur le numéro indiqué au point 2.</div>
+      </div>
+      <details>
+        <summary>Comment obtenir la clé API ? (3 étapes, ~2 min)</summary>
+        <ol>
+          <li>Dans WhatsApp, ajoutez ce contact : <b>+34 621 371 153</b> (nom au choix).</li>
+          <li>Envoyez-lui ce message exact : <code>I allow callmebot to send me messages</code></li>
+          <li>Vous recevez une réponse : <i>« API Activated… Your APIKEY is 123456 »</i>. Copiez ce nombre ici.</li>
+        </ol>
+        <p class="note">Astuce : le numéro du point 2 doit être le même que celui qui a envoyé le message au bot.</p>
+      </details>
     </div>
-    <div class="champ">
-      <label>Numéro WhatsApp émetteur Twilio</label>
-      <input id="twilioFrom" placeholder="+14155238886">
-      <div class="note">Pour le bac à sable Twilio, c'est <code>+14155238886</code>.</div>
+
+    <!-- Twilio -->
+    <div class="bloc" id="blocTwilio" style="display:none;">
+      <h2 style="font-size:15px;">Twilio</h2>
+      <p class="aide">Option professionnelle (payante après les crédits offerts), utile pour un usage commercial.</p>
+      <div class="champ"><label>Account SID</label><input id="twilioSid" placeholder="ACxxxxxxxx"></div>
+      <div class="champ"><label>Auth Token</label><input type="password" id="twilioToken" placeholder="(laisser vide pour ne pas changer)"></div>
+      <div class="champ"><label>Numéro émetteur Twilio</label><input id="twilioFrom" placeholder="+14155238886"><div class="note">Bac à sable : <code>+14155238886</code></div></div>
     </div>
-    <details>
-      <summary>Comment obtenir ces informations ? (pas à pas)</summary>
-      <ol>
-        <li>Aller sur <code>twilio.com/try-twilio</code> et créer un compte gratuit.</li>
-        <li>Dans la console, ouvrir <b>Messaging → Try it out → Send a WhatsApp message</b>.</li>
-        <li>Suivre l'instruction pour <b>rejoindre le bac à sable</b> : envoyer le code <code>join ...</code> depuis votre WhatsApp au numéro indiqué.</li>
-        <li>Sur la page d'accueil de la console, copier <b>Account SID</b> et <b>Auth Token</b>.</li>
-        <li>Coller les 3 valeurs ci-dessus, puis <b>Enregistrer</b> et <b>Envoyer un test</b>.</li>
-      </ol>
-    </details>
   </div>
 
   <div class="carte">
@@ -108,6 +122,14 @@
 
 <script>
 let storageReady=false, codeDejaDefini=false;
+function val(id){return document.getElementById(id).value.trim();}
+function setMsg(t,err){const m=document.getElementById('msg');m.textContent=t;m.className='msg '+(err?'ko':'ok');}
+
+function majMethode(){
+  const m=val('methode');
+  document.getElementById('blocCallmebot').style.display = m==='callmebot'?'block':'none';
+  document.getElementById('blocTwilio').style.display = m==='twilio'?'block':'none';
+}
 
 async function charger(){
   try{
@@ -116,29 +138,32 @@ async function charger(){
     document.getElementById('nomEntreprise').value=s.nomEntreprise||'';
     document.getElementById('heureRecap').value=s.heureRecap||'07:00';
     document.getElementById('whatsappDest').value=s.whatsappDest||'';
+    document.getElementById('methode').value=s.methode||'callmebot';
     document.getElementById('twilioSid').value=s.twilioSid||'';
     document.getElementById('twilioFrom').value=s.twilioFrom||'';
     codeDejaDefini=!!s.adminCodeSet;
     document.getElementById('noteCode').textContent=codeDejaDefini?'Un code existe déjà. Saisissez-le pour modifier la configuration.':'Aucun code défini : celui que vous saisissez deviendra le code administrateur.';
-    const twOk=s.twilioSidSet||s.twilioSid; const et=document.getElementById('etatTwilio');
-    if(s.twilioSid && s.twilioTokenSet && s.twilioFrom){et.textContent='configuré';et.className='etat on';}
-    if(!storageReady){ setMsg('⚠️ Le stockage cloud n\'est pas encore branché : vos réglages risquent de ne pas être conservés. Voir l\'étape « Stockage » dans le guide.', true); }
+    const et=document.getElementById('etatEnvoi');
+    const callmebotOk = (s.methode!=='twilio') && s.callmebotApikeySet && s.whatsappDest;
+    const twilioOk = (s.methode==='twilio') && s.twilioSid && s.twilioTokenSet && s.twilioFrom;
+    if(callmebotOk||twilioOk){et.textContent='configuré';et.className='etat on';}
+    majMethode();
+    if(!storageReady){ setMsg('⚠️ Le stockage cloud n\'est pas branché : les réglages risquent de ne pas être conservés.', true); }
   }catch(e){ setMsg('Impossible de charger la configuration.', true); }
 }
-
-function setMsg(t,err){const m=document.getElementById('msg');m.textContent=t;m.className='msg '+(err?'ko':'ok');}
 
 function payload(){
   const p={
     nomEntreprise:val('nomEntreprise'), heureRecap:val('heureRecap'),
-    whatsappDest:val('whatsappDest'), twilioSid:val('twilioSid'), twilioFrom:val('twilioFrom')
+    whatsappDest:val('whatsappDest'), methode:val('methode'),
+    twilioSid:val('twilioSid'), twilioFrom:val('twilioFrom')
   };
   const tok=val('twilioToken'); if(tok) p.twilioToken=tok;
+  const key=val('callmebotApikey'); if(key) p.callmebotApikey=key;
   const code=val('adminCode');
   if(codeDejaDefini) p.adminCodeActuel=code; else if(code) p.nouveauCode=code;
   return {p, code};
 }
-function val(id){return document.getElementById(id).value.trim();}
 
 async function enregistrer(){
   const {p, code}=payload();
@@ -149,7 +174,8 @@ async function enregistrer(){
     const j=await r.json();
     if(!r.ok){ setMsg('✗ '+(j.error||'Erreur'), true); return; }
     setMsg('✓ Configuration enregistrée.');
-    codeDejaDefini=true; document.getElementById('twilioToken').value='';
+    codeDejaDefini=true;
+    document.getElementById('twilioToken').value=''; document.getElementById('callmebotApikey').value='';
     charger();
   }catch(e){ setMsg('✗ Erreur réseau', true); }
 }
@@ -161,7 +187,7 @@ async function envoyerTest(){
     const r=await fetch('/api/test',{method:'POST',headers:{'Content-Type':'application/json','x-admin-code':code},body:JSON.stringify({adminCode:code})});
     const j=await r.json();
     if(!r.ok){ setMsg('✗ '+(j.error||'Échec de l\'envoi'), true); return; }
-    setMsg('✓ Message de test envoyé (statut : '+j.status+'). Vérifiez votre WhatsApp.');
+    setMsg('✓ Message de test envoyé. Vérifiez votre WhatsApp dans quelques secondes.');
   }catch(e){ setMsg('✗ Erreur réseau', true); }
 }
 

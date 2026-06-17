@@ -1,7 +1,7 @@
 const { getJSON, setJSON, readBody } = require('../lib/store');
 
 // Champs secrets jamais renvoyés au navigateur
-const SECRETS = ['twilioToken', 'adminCode'];
+const SECRETS = ['twilioToken', 'adminCode', 'callmebotApikey'];
 
 function masquer(s) {
   const pub = { ...s };
@@ -28,12 +28,13 @@ module.exports = async (req, res) => {
         }
       }
 
-      const champs = ['nomEntreprise', 'heureRecap', 'whatsappDest', 'twilioSid', 'twilioFrom'];
+      const champs = ['nomEntreprise', 'heureRecap', 'whatsappDest', 'methode', 'callmebotPhone', 'twilioSid', 'twilioFrom'];
       const next = { ...s };
       for (const c of champs) if (c in body) next[c] = (body[c] || '').toString().trim();
 
       // Secrets : on ne remplace que si une nouvelle valeur non vide est fournie
       if (body.twilioToken) next.twilioToken = body.twilioToken.toString().trim();
+      if (body.callmebotApikey) next.callmebotApikey = body.callmebotApikey.toString().trim();
       if (body.nouveauCode) next.adminCode = body.nouveauCode.toString().trim();
       else if (!s.adminCode && body.adminCode) next.adminCode = body.adminCode.toString().trim();
 
