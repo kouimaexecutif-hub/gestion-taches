@@ -6,6 +6,9 @@ const SECRETS = ['twilioToken', 'adminCode', 'callmebotApikey'];
 function masquer(s) {
   const pub = { ...s };
   for (const k of SECRETS) { pub[k + 'Set'] = !!s[k]; delete pub[k]; }
+  pub.collaborateurs = (s.collaborateurs || []).map(c => ({
+    nom: c.nom || '', numero: c.numero || '', tout: !!c.tout, cleSet: !!c.cle
+  }));
   return pub;
 }
 
@@ -20,7 +23,6 @@ module.exports = async (req, res) => {
     if (req.method === 'POST' || req.method === 'PUT') {
       const body = await readBody(req);
 
-      // Protection : si un code admin existe déjà, il faut le fournir
       if (s.adminCode) {
         const fourni = req.headers['x-admin-code'] || body.adminCodeActuel;
         if (fourni !== s.adminCode) {
@@ -32,11 +34,22 @@ module.exports = async (req, res) => {
       const next = { ...s };
       for (const c of champs) if (c in body) next[c] = (body[c] || '').toString().trim();
 
-      // Secrets : on ne remplace que si une nouvelle valeur non vide est fournie
       if (body.twilioToken) next.twilioToken = body.twilioToken.toString().trim();
       if (body.callmebotApikey) next.callmebotApikey = body.callmebotApikey.toString().trim();
       if (body.nouveauCode) next.adminCode = body.nouveauCode.toString().trim();
       else if (!s.adminCode && body.adminCode) next.adminCode = body.adminCode.toString().trim();
+
+      // Collaborateurs : fusion en conservant la clé existante si aucune nouvelle n'est fournie
+      if (Array.isArray(body.collaborateurs)) {
+        const existing = s.collaborateurs || [];
+        next.collaborateurs = body.collaborateurs
+          .filter(c => c && (c.nom || c.numero))
+          .map(c => {
+            const prev = existing.find(e => e.nom === c.nom);
+            const cle = (c.cle && String(c.cle).trim()) ? String(c.cle).trim() : (prev ? prev.cle : '');
+            return { nom: String(c.nom || '').trim(), numero: String(c.numero || '').trim(), tout: !!c.tout, cle };
+          });
+      }
 
       await setJSON('settings', next);
       return res.status(200).json({ ok: true, settings: masquer(next) });

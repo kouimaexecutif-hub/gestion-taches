@@ -48,12 +48,23 @@ Les colonnes du tableau : **Tâche · Description · Comment réaliser la tâche
 
 > Sans cette étape, l'application fonctionne pour faire un essai, mais les tâches ne sont pas conservées durablement.
 
-## Étape 4 — Créer le compte d'envoi WhatsApp (Twilio, gratuit pour tester)
+## Étape 4 — Choisir la méthode d'envoi WhatsApp
 
-1. Aller sur **twilio.com/try-twilio**, créer un compte gratuit.
-2. Dans la console : **Messaging → Try it out → Send a WhatsApp message**.
-3. Suivre l'instruction pour **rejoindre le bac à sable** : depuis votre WhatsApp, envoyer le message `join <deux-mots>` au numéro Twilio indiqué (souvent **+1 415 523 8886**).
-4. Sur la page d'accueil de la console, noter : **Account SID** et **Auth Token**.
+L'application propose deux méthodes (à choisir dans la page Configuration) :
+
+**Option A — CallMeBot (GRATUIT, recommandé pour usage personnel)**
+1. Dans WhatsApp, ajouter le contact **+34 621 371 153**.
+2. Lui envoyer le message exact : `I allow callmebot to send me messages`
+3. On reçoit en réponse une **clé API** (un nombre). La copier.
+4. Dans la page Configuration : méthode **CallMeBot**, coller la clé. C'est tout.
+
+*Note : l'API gratuite de CallMeBot est réservée à un usage personnel.*
+
+**Option B — Twilio (professionnel, pour un usage commercial/multi-clients)**
+1. Aller sur **twilio.com/try-twilio**, créer un compte (crédits offerts puis payant).
+2. Console : **Messaging → Try it out → Send a WhatsApp message**, rejoindre le bac à sable.
+3. Noter **Account SID** et **Auth Token**, et le numéro émetteur (souvent **+14155238886**).
+4. Dans la page Configuration : méthode **Twilio**, coller les valeurs.
 
 ## Étape 5 — Configurer l'application (page Configuration)
 

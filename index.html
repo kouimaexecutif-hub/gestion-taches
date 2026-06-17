@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gestion des tâches journalières</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#1f7a4d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Tâches ViZé">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="icon" href="/icon-192.png">
 <style>
   :root{
     --vert:#1f7a4d; --vert-clair:#e8f3ec; --bleu:#2563eb;
@@ -24,12 +30,13 @@
   .btn-vert:hover{background:#19613d;}
   .btn-gris{background:#fff;color:var(--texte);border:1px solid var(--bordure);}
   .btn-gris:hover{background:#f0f0f0;}
+  select.filtre{padding:10px 12px;border:1px solid var(--bordure);border-radius:8px;font-size:14px;background:#fff;}
   .stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
   .stat{background:#fff;border:1px solid var(--bordure);border-radius:10px;padding:12px 18px;min-width:120px;}
   .stat .n{font-size:24px;font-weight:700;}
   .stat .l{font-size:12px;color:var(--doux);text-transform:uppercase;letter-spacing:.04em;}
   .tablecard{background:#fff;border:1px solid var(--bordure);border-radius:12px;overflow:auto;}
-  table{border-collapse:collapse;width:100%;min-width:1300px;}
+  table{border-collapse:collapse;width:100%;min-width:1400px;}
   th,td{padding:10px 12px;text-align:left;font-size:13.5px;border-bottom:1px solid var(--bordure);vertical-align:top;}
   th{background:var(--vert-clair);color:#14532d;font-weight:600;position:sticky;top:0;white-space:nowrap;}
   tr:hover td{background:#fafbfc;}
@@ -41,6 +48,7 @@
   .e-encours{background:#e0edff;color:#1d4ed8;}
   .e-termine{background:#e7f6ec;color:#16a34a;}
   .e-bloque{background:#fde8e8;color:#dc2626;}
+  .resp{display:inline-block;padding:3px 9px;border-radius:20px;font-size:12px;font-weight:600;background:#ede9fe;color:#6d28d9;}
   .prog{height:8px;background:#eceff1;border-radius:6px;overflow:hidden;min-width:80px;}
   .prog > div{height:100%;background:var(--vert);}
   .cell-actions button{padding:5px 9px;font-size:12px;margin-right:4px;}
@@ -57,7 +65,15 @@
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
   .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px;}
   .badge-sync{font-size:12px;padding:4px 10px;border-radius:20px;background:rgba(255,255,255,.2);}
-  @media(max-width:560px){.grid2{grid-template-columns:1fr;}}
+  @media(max-width:560px){
+    .grid2{grid-template-columns:1fr;}
+    header{padding:14px 16px;}
+    header h1{font-size:17px;}
+    .wrap{padding:12px;}
+    th,td{padding:8px 9px;font-size:12.5px;}
+    .stat{min-width:calc(50% - 6px);flex:1;}
+    .modal{padding:18px;}
+  }
 </style>
 </head>
 <body>
@@ -66,7 +82,8 @@
     <h1 id="titreApp">Gestion des tâches journalières</h1>
     <div class="sub" id="sousTitre">Suivi quotidien · récap WhatsApp automatique</div>
   </div>
-  <div style="display:flex;gap:10px;align-items:center;">
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+    <button id="btnInstall" class="lien" style="display:none;cursor:pointer;border:none;" onclick="installerApp()">⬇ Installer l'app</button>
     <a class="lien" href="/config.html">⚙ Configuration</a>
     <span class="badge-sync" id="syncBadge">Chargement…</span>
   </div>
@@ -78,7 +95,8 @@
   <div class="barre">
     <button class="btn-vert" onclick="ouvrirModal()">+ Nouvelle tâche</button>
     <button class="btn-gris" onclick="chargerTaches()">↻ Rafraîchir</button>
-    <button class="btn-gris" onclick="apercuRecap()">👁 Aperçu du récap WhatsApp</button>
+    <button class="btn-gris" onclick="apercuRecap()">👁 Aperçu du récap</button>
+    <select class="filtre" id="filtreResp" onchange="rendre()"><option value="">Tous les responsables</option></select>
   </div>
 
   <div class="tablecard">
@@ -89,6 +107,7 @@
           <th>Description</th>
           <th>Comment réaliser la tâche</th>
           <th>Avec quelles ressources</th>
+          <th>Responsable</th>
           <th>Priorité</th>
           <th>Date de début</th>
           <th>Date d'échéance</th>
@@ -107,7 +126,7 @@
 <div class="overlay" id="overlay">
   <div class="modal">
     <h2 id="modalTitre">Nouvelle tâche</h2>
-    <p class="aide">Les champs « Comment réaliser » et « Ressources » précisent la méthode et les moyens nécessaires.</p>
+    <p class="aide">Les champs « Comment réaliser » et « Ressources » précisent la méthode et les moyens. Le « Responsable » reçoit cette tâche dans son récap WhatsApp.</p>
     <input type="hidden" id="f-id">
     <div class="champ">
       <label>Tâche *</label>
@@ -124,6 +143,10 @@
     <div class="champ">
       <label>Avec quelles ressources</label>
       <textarea id="f-ressources" placeholder="Documents, logiciels, personnes, budget nécessaires"></textarea>
+    </div>
+    <div class="champ">
+      <label>Responsable</label>
+      <select id="f-responsable"><option value="">— Non assigné —</option></select>
     </div>
     <div class="grid2">
       <div class="champ">
@@ -148,6 +171,7 @@
 
 <script>
 let taches = [];
+let responsables = [];
 const API='/api/tasks';
 function aujourdhui(){ return new Date().toISOString().slice(0,10); }
 
@@ -156,7 +180,16 @@ async function chargerConfigPublique(){
     const r=await fetch('/api/settings'); const s=(await r.json()).settings||{};
     if(s.nomEntreprise){ document.getElementById('titreApp').textContent=s.nomEntreprise+' — Gestion des tâches'; document.title=s.nomEntreprise; }
     if(s.heureRecap){ document.getElementById('sousTitre').textContent='Suivi quotidien · récap WhatsApp automatique à '+s.heureRecap; }
+    responsables=(s.collaborateurs||[]).map(c=>c.nom).filter(Boolean);
+    majResponsables();
   }catch(e){}
+}
+
+function majResponsables(){
+  const optn='<option value="">— Non assigné —</option>'+responsables.map(n=>`<option>${esc(n)}</option>`).join('');
+  const sel=document.getElementById('f-responsable'); if(sel) sel.innerHTML=optn;
+  const filt=document.getElementById('filtreResp');
+  if(filt){ const cur=filt.value; filt.innerHTML='<option value="">Tous les responsables</option>'+responsables.map(n=>`<option>${esc(n)}</option>`).join(''); filt.value=cur; }
 }
 
 async function chargerTaches(){
@@ -183,15 +216,18 @@ function frDate(d){if(!d)return'—';const[y,m,j]=d.split('-');return `${j}/${m}
 function esc(s){return (s||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));}
 
 function rendre(){
+  const filtre=document.getElementById('filtreResp')?document.getElementById('filtreResp').value:'';
+  const liste=filtre?taches.filter(t=>(t.responsable||'')===filtre):taches;
   const tb=document.getElementById('tbody');tb.innerHTML='';
-  document.getElementById('vide').style.display=taches.length?'none':'block';
-  taches.forEach(t=>{
+  document.getElementById('vide').style.display=liste.length?'none':'block';
+  liste.forEach(t=>{
     const tr=document.createElement('tr');
     tr.innerHTML=`
       <td><strong>${esc(t.tache)}</strong></td>
       <td>${esc(t.description)||'—'}</td>
       <td>${esc(t.comment)||'—'}</td>
       <td>${esc(t.ressources)||'—'}</td>
+      <td>${t.responsable?`<span class="resp">${esc(t.responsable)}</span>`:'—'}</td>
       <td><span class="pill ${classePriorite(t.priorite)}">${t.priorite}</span></td>
       <td>${frDate(t.debut)}</td>
       <td>${frDate(t.echeance)}</td>
@@ -204,12 +240,12 @@ function rendre(){
       </td>`;
     tb.appendChild(tr);
   });
-  rendreStats();
+  rendreStats(liste);
 }
-function rendreStats(){
-  const total=taches.length, termine=taches.filter(t=>t.etat==='Terminé').length,
-    cours=taches.filter(t=>t.etat==='En cours').length, bloque=taches.filter(t=>t.etat==='Bloqué').length,
-    moy=total?Math.round(taches.reduce((s,t)=>s+(+t.progres||0),0)/total):0;
+function rendreStats(liste){
+  const total=liste.length, termine=liste.filter(t=>t.etat==='Terminé').length,
+    cours=liste.filter(t=>t.etat==='En cours').length, bloque=liste.filter(t=>t.etat==='Bloqué').length,
+    moy=total?Math.round(liste.reduce((s,t)=>s+(+t.progres||0),0)/total):0;
   document.getElementById('stats').innerHTML=`
     <div class="stat"><div class="n">${total}</div><div class="l">Tâches</div></div>
     <div class="stat"><div class="n">${cours}</div><div class="l">En cours</div></div>
@@ -219,6 +255,7 @@ function rendreStats(){
 }
 function ouvrirModal(){document.getElementById('modalTitre').textContent='Nouvelle tâche';
   ['id','tache','description','comment','ressources','notes'].forEach(k=>document.getElementById('f-'+k).value='');
+  majResponsables(); document.getElementById('f-responsable').value='';
   document.getElementById('f-priorite').value='Moyenne';document.getElementById('f-etat').value='À faire';
   document.getElementById('f-debut').value=aujourdhui();document.getElementById('f-echeance').value='';
   document.getElementById('f-progres').value=0;document.getElementById('overlay').classList.add('show');}
@@ -229,7 +266,9 @@ function editer(id){const t=taches.find(x=>x.id===id);if(!t)return;
   document.getElementById('modalTitre').textContent='Modifier la tâche';
   document.getElementById('f-id').value=t.id;document.getElementById('f-tache').value=t.tache;
   document.getElementById('f-description').value=t.description||'';document.getElementById('f-comment').value=t.comment||'';
-  document.getElementById('f-ressources').value=t.ressources||'';document.getElementById('f-priorite').value=t.priorite;
+  document.getElementById('f-ressources').value=t.ressources||'';
+  majResponsables(); document.getElementById('f-responsable').value=t.responsable||'';
+  document.getElementById('f-priorite').value=t.priorite;
   document.getElementById('f-etat').value=t.etat;document.getElementById('f-debut').value=t.debut||'';
   document.getElementById('f-echeance').value=t.echeance||'';document.getElementById('f-progres').value=t.progres||0;
   document.getElementById('f-notes').value=t.notes||'';document.getElementById('overlay').classList.add('show');}
@@ -240,6 +279,7 @@ function enregistrer(){
     description:document.getElementById('f-description').value.trim(),
     comment:document.getElementById('f-comment').value.trim(),
     ressources:document.getElementById('f-ressources').value.trim(),
+    responsable:document.getElementById('f-responsable').value,
     priorite:document.getElementById('f-priorite').value,etat:document.getElementById('f-etat').value,
     debut:document.getElementById('f-debut').value,echeance:document.getElementById('f-echeance').value,
     progres:+document.getElementById('f-progres').value||0,notes:document.getElementById('f-notes').value.trim()};
@@ -248,16 +288,28 @@ function enregistrer(){
 function supprimer(id){if(!confirm('Supprimer cette tâche ?'))return;taches=taches.filter(x=>x.id!==id);rendre();sauverServeur();}
 function apercuRecap(){
   const t=aujourdhui();
-  const dujour=taches.filter(x=>x.etat!=='Terminé');
-  if(!taches.length){alert('Aucune tâche.');return;}
-  let txt='*Récap des tâches — '+frDate(t)+'*\n\n';
-  (dujour.length?dujour:taches).forEach(x=>{txt+=`• ${x.tache} — ${x.etat} (${x.progres||0}%)${x.priorite==='Haute'?' ⚠️':''}\n`;});
-  const base=dujour.length?dujour:taches;
+  const filtre=document.getElementById('filtreResp').value;
+  const liste=filtre?taches.filter(x=>(x.responsable||'')===filtre):taches;
+  const dujour=liste.filter(x=>x.etat!=='Terminé');
+  if(!liste.length){alert('Aucune tâche.');return;}
+  let txt='*Récap des tâches — '+frDate(t)+'*'+(filtre?(' — '+filtre):'')+'\n\n';
+  (dujour.length?dujour:liste).forEach(x=>{txt+=`• ${x.tache} — ${x.etat} (${x.progres||0}%)${x.priorite==='Haute'?' ⚠️':''}\n`;});
+  const base=dujour.length?dujour:liste;
   const moy=Math.round(base.reduce((s,x)=>s+(+x.progres||0),0)/base.length);
   txt+='\nAvancement moyen : '+moy+'%';
   alert(txt);}
 chargerConfigPublique();
 chargerTaches();
+
+// --- PWA : installation + service worker ---
+let promptInstall=null;
+window.addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); promptInstall=e; document.getElementById('btnInstall').style.display='inline-block'; });
+function installerApp(){
+  if(promptInstall){ promptInstall.prompt(); promptInstall.userChoice.finally(()=>{promptInstall=null; document.getElementById('btnInstall').style.display='none';}); }
+  else { alert("Pour installer :\n• Ordinateur (Chrome/Edge) : icône d'installation dans la barre d'adresse.\n• iPhone (Safari) : bouton Partager → « Sur l'écran d'accueil ».\n• Android : menu ⋮ → « Installer l'application »."); }
+}
+window.addEventListener('appinstalled', ()=>{ document.getElementById('btnInstall').style.display='none'; });
+if('serviceWorker' in navigator){ window.addEventListener('load', ()=>navigator.serviceWorker.register('/sw.js').catch(()=>{})); }
 </script>
 </body>
 </html>

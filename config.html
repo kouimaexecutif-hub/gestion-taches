@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Configuration — Gestion des tâches</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#1f7a4d">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="icon" href="/icon-192.png">
 <style>
   :root{--vert:#1f7a4d;--vert-clair:#e8f3ec;--gris:#f4f5f7;--bordure:#dfe3e8;--texte:#1f2933;--doux:#6b7280;--rouge:#dc2626;}
   *{box-sizing:border-box;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
@@ -11,7 +15,7 @@
   header{background:var(--vert);color:#fff;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;}
   header h1{font-size:18px;margin:0;}
   a.lien{color:#fff;text-decoration:none;background:rgba(255,255,255,.18);padding:8px 14px;border-radius:8px;font-size:14px;font-weight:600;}
-  .wrap{max-width:760px;margin:24px auto;padding:0 18px;}
+  .wrap{max-width:780px;margin:24px auto;padding:0 18px;}
   .carte{background:#fff;border:1px solid var(--bordure);border-radius:12px;padding:22px;margin-bottom:18px;}
   .carte h2{margin:0 0 4px;font-size:16px;}
   .carte p.aide{margin:0 0 16px;font-size:13px;color:var(--doux);line-height:1.5;}
@@ -22,6 +26,7 @@
   button{cursor:pointer;border:none;border-radius:8px;padding:11px 18px;font-size:14px;font-weight:600;}
   .btn-vert{background:var(--vert);color:#fff;}
   .btn-gris{background:#fff;color:var(--texte);border:1px solid var(--bordure);}
+  .btn-rouge{background:#fff;color:var(--rouge);border:1px solid #f3c2c2;padding:8px 12px;}
   .ok{color:var(--vert);font-weight:600;}
   .ko{color:var(--rouge);font-weight:600;}
   .etat{padding:3px 9px;border-radius:20px;font-size:12px;font-weight:600;}
@@ -32,8 +37,13 @@
   summary{cursor:pointer;font-weight:600;font-size:14px;color:var(--vert);}
   ol{font-size:13.5px;line-height:1.7;color:#374151;}
   code{background:#eef0f2;padding:1px 5px;border-radius:4px;font-size:12.5px;}
-  .reco{display:inline-block;background:#e7f6ec;color:#16a34a;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:6px;}
   .bloc{border:1px solid var(--bordure);border-radius:10px;padding:16px;margin-top:12px;}
+  .collabrow{border:1px solid var(--bordure);border-radius:10px;padding:14px;margin-bottom:12px;background:#fbfcfd;}
+  .collabrow .ligne{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;}
+  .collabrow input[type=text],.collabrow input[type=password]{width:100%;padding:9px 11px;border:1px solid var(--bordure);border-radius:8px;font-size:14px;}
+  .collabrow .opts{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .collabrow label.chk{font-size:13px;display:flex;align-items:center;gap:6px;font-weight:600;}
+  @media(max-width:560px){.collabrow .ligne{grid-template-columns:1fr;}}
 </style>
 </head>
 <body>
@@ -46,7 +56,7 @@
 
   <div class="carte">
     <h2>1. Accès administrateur</h2>
-    <p class="aide">Un code protège cette page. À la première utilisation, choisissez votre code. Ensuite, il sera demandé pour toute modification.</p>
+    <p class="aide">Ce code protège la configuration (réglages, collaborateurs). À la première utilisation, choisissez-le.</p>
     <div class="champ">
       <label>Code administrateur</label>
       <input type="password" id="adminCode" placeholder="Votre code secret">
@@ -65,15 +75,10 @@
       <input id="heureRecap" value="07:00" placeholder="07:00">
       <div class="note">Affichage indicatif. L'envoi automatique est planifié à 07h00 (heure du Gabon).</div>
     </div>
-    <div class="champ">
-      <label>Numéro WhatsApp destinataire (avec indicatif pays)</label>
-      <input id="whatsappDest" placeholder="+24106000000">
-      <div class="note">Format international, ex : <code>+24106000000</code></div>
-    </div>
   </div>
 
   <div class="carte">
-    <h2>3. Méthode d'envoi WhatsApp <span class="etat off" id="etatEnvoi">non configuré</span></h2>
+    <h2>3. Méthode d'envoi WhatsApp</h2>
     <div class="champ">
       <label>Choisir la méthode</label>
       <select id="methode" onchange="majMethode()">
@@ -81,40 +86,35 @@
         <option value="twilio">Twilio — professionnel (payant)</option>
       </select>
     </div>
-
-    <!-- CallMeBot -->
     <div class="bloc" id="blocCallmebot">
-      <h2 style="font-size:15px;">CallMeBot <span class="reco">GRATUIT</span></h2>
-      <p class="aide">Idéal pour s'envoyer le récap à soi-même. Il faut activer une seule fois la clé API depuis votre WhatsApp.</p>
-      <div class="champ">
-        <label>Clé API CallMeBot</label>
-        <input type="password" id="callmebotApikey" placeholder="(laisser vide pour ne pas changer)">
-        <div class="note">Le récap sera envoyé sur le numéro indiqué au point 2.</div>
-      </div>
+      <p class="aide" style="margin:0;">Avec CallMeBot (gratuit), <b>chaque destinataire</b> a sa propre clé API à activer depuis son téléphone. Vous renseignez ces clés dans la section 4 ci-dessous.</p>
       <details>
-        <summary>Comment obtenir la clé API ? (3 étapes, ~2 min)</summary>
+        <summary>Comment chaque personne obtient sa clé ? (3 étapes)</summary>
         <ol>
-          <li>Dans WhatsApp, ajoutez ce contact : <b>+34 621 371 153</b> (nom au choix).</li>
-          <li>Envoyez-lui ce message exact : <code>I allow callmebot to send me messages</code></li>
-          <li>Vous recevez une réponse : <i>« API Activated… Your APIKEY is 123456 »</i>. Copiez ce nombre ici.</li>
+          <li>Dans WhatsApp, ajouter le contact <b>+34 621 371 153</b>.</li>
+          <li>Lui envoyer : <code>I allow callmebot to send me messages</code></li>
+          <li>Le bot répond avec la clé (<i>« Your APIKEY is 123456 »</i>) à coller dans la section 4.</li>
         </ol>
-        <p class="note">Astuce : le numéro du point 2 doit être le même que celui qui a envoyé le message au bot.</p>
       </details>
     </div>
-
-    <!-- Twilio -->
     <div class="bloc" id="blocTwilio" style="display:none;">
-      <h2 style="font-size:15px;">Twilio</h2>
-      <p class="aide">Option professionnelle (payante après les crédits offerts), utile pour un usage commercial.</p>
+      <p class="aide" style="margin:0 0 10px;">Avec Twilio, une seule configuration sert pour tous les destinataires (pas de clé par personne).</p>
       <div class="champ"><label>Account SID</label><input id="twilioSid" placeholder="ACxxxxxxxx"></div>
       <div class="champ"><label>Auth Token</label><input type="password" id="twilioToken" placeholder="(laisser vide pour ne pas changer)"></div>
-      <div class="champ"><label>Numéro émetteur Twilio</label><input id="twilioFrom" placeholder="+14155238886"><div class="note">Bac à sable : <code>+14155238886</code></div></div>
+      <div class="champ"><label>Numéro émetteur Twilio</label><input id="twilioFrom" placeholder="+14155238886"></div>
     </div>
   </div>
 
   <div class="carte">
+    <h2>4. Destinataires &amp; collaborateurs <span class="etat off" id="etatEnvoi">aucun</span></h2>
+    <p class="aide">Ajoutez chaque personne qui doit recevoir un récap WhatsApp le matin (vous compris). Chacune reçoit <b>les tâches dont elle est responsable</b>. Cochez « reçoit toutes les tâches » pour un responsable qui doit avoir la vue complète.</p>
+    <div id="colList"></div>
+    <button class="btn-gris" onclick="ajouterCollab()">+ Ajouter une personne</button>
+  </div>
+
+  <div class="carte">
     <button class="btn-vert" onclick="enregistrer()">💾 Enregistrer la configuration</button>
-    <button class="btn-gris" onclick="envoyerTest()">📲 Envoyer un test WhatsApp</button>
+    <button class="btn-gris" onclick="envoyerTest()">📲 Envoyer un test à tous</button>
     <div class="msg" id="msg"></div>
   </div>
 
@@ -129,6 +129,37 @@ function majMethode(){
   const m=val('methode');
   document.getElementById('blocCallmebot').style.display = m==='callmebot'?'block':'none';
   document.getElementById('blocTwilio').style.display = m==='twilio'?'block':'none';
+  document.querySelectorAll('.cle-cell').forEach(el=>el.style.display = m==='twilio'?'none':'block');
+}
+
+function ligneCollab(c={}){
+  const div=document.createElement('div');
+  div.className='collabrow';
+  div.innerHTML=`
+    <div class="ligne">
+      <div><label style="font-size:12px;font-weight:600;">Nom</label>
+        <input type="text" class="c-nom" value="${(c.nom||'').replace(/"/g,'&quot;')}" placeholder="Ex : Michael"></div>
+      <div><label style="font-size:12px;font-weight:600;">Numéro WhatsApp</label>
+        <input type="text" class="c-numero" value="${(c.numero||'').replace(/"/g,'&quot;')}" placeholder="+241..."></div>
+    </div>
+    <div class="cle-cell" style="margin-bottom:8px;">
+      <label style="font-size:12px;font-weight:600;">Clé API CallMeBot</label>
+      <input type="password" class="c-cle" placeholder="${c.cleSet?'(clé enregistrée — laisser vide)':'Clé reçue du bot'}">
+    </div>
+    <div class="opts">
+      <label class="chk"><input type="checkbox" class="c-tout" ${c.tout?'checked':''}> reçoit toutes les tâches</label>
+      <button class="btn-rouge" onclick="this.closest('.collabrow').remove()">Retirer</button>
+    </div>`;
+  return div;
+}
+function ajouterCollab(c){ document.getElementById('colList').appendChild(ligneCollab(c||{})); majMethode(); }
+function lireCollabs(){
+  return [...document.querySelectorAll('.collabrow')].map(r=>({
+    nom:r.querySelector('.c-nom').value.trim(),
+    numero:r.querySelector('.c-numero').value.trim(),
+    cle:r.querySelector('.c-cle').value.trim(),
+    tout:r.querySelector('.c-tout').checked
+  })).filter(c=>c.nom||c.numero);
 }
 
 async function charger(){
@@ -137,16 +168,18 @@ async function charger(){
     const s=j.settings||{}; storageReady=j.storageReady;
     document.getElementById('nomEntreprise').value=s.nomEntreprise||'';
     document.getElementById('heureRecap').value=s.heureRecap||'07:00';
-    document.getElementById('whatsappDest').value=s.whatsappDest||'';
     document.getElementById('methode').value=s.methode||'callmebot';
     document.getElementById('twilioSid').value=s.twilioSid||'';
     document.getElementById('twilioFrom').value=s.twilioFrom||'';
     codeDejaDefini=!!s.adminCodeSet;
     document.getElementById('noteCode').textContent=codeDejaDefini?'Un code existe déjà. Saisissez-le pour modifier la configuration.':'Aucun code défini : celui que vous saisissez deviendra le code administrateur.';
-    const et=document.getElementById('etatEnvoi');
-    const callmebotOk = (s.methode!=='twilio') && s.callmebotApikeySet && s.whatsappDest;
-    const twilioOk = (s.methode==='twilio') && s.twilioSid && s.twilioTokenSet && s.twilioFrom;
-    if(callmebotOk||twilioOk){et.textContent='configuré';et.className='etat on';}
+    const list=document.getElementById('colList'); list.innerHTML='';
+    const cols=s.collaborateurs||[];
+    if(cols.length){ cols.forEach(c=>ajouterCollab(c)); }
+    else if(s.whatsappDest){ ajouterCollab({nom:s.nomEntreprise||'Moi', numero:s.whatsappDest, cleSet:s.callmebotApikeySet, tout:true}); }
+    else { ajouterCollab({tout:true}); }
+    document.getElementById('etatEnvoi').textContent = cols.length? (cols.length+' destinataire'+(cols.length>1?'s':'')) : 'à configurer';
+    document.getElementById('etatEnvoi').className = 'etat '+(cols.length?'on':'off');
     majMethode();
     if(!storageReady){ setMsg('⚠️ Le stockage cloud n\'est pas branché : les réglages risquent de ne pas être conservés.', true); }
   }catch(e){ setMsg('Impossible de charger la configuration.', true); }
@@ -154,12 +187,11 @@ async function charger(){
 
 function payload(){
   const p={
-    nomEntreprise:val('nomEntreprise'), heureRecap:val('heureRecap'),
-    whatsappDest:val('whatsappDest'), methode:val('methode'),
-    twilioSid:val('twilioSid'), twilioFrom:val('twilioFrom')
+    nomEntreprise:val('nomEntreprise'), heureRecap:val('heureRecap'), methode:val('methode'),
+    twilioSid:val('twilioSid'), twilioFrom:val('twilioFrom'),
+    collaborateurs:lireCollabs()
   };
   const tok=val('twilioToken'); if(tok) p.twilioToken=tok;
-  const key=val('callmebotApikey'); if(key) p.callmebotApikey=key;
   const code=val('adminCode');
   if(codeDejaDefini) p.adminCodeActuel=code; else if(code) p.nouveauCode=code;
   return {p, code};
@@ -174,24 +206,29 @@ async function enregistrer(){
     const j=await r.json();
     if(!r.ok){ setMsg('✗ '+(j.error||'Erreur'), true); return; }
     setMsg('✓ Configuration enregistrée.');
-    codeDejaDefini=true;
-    document.getElementById('twilioToken').value=''; document.getElementById('callmebotApikey').value='';
+    codeDejaDefini=true; document.getElementById('twilioToken').value='';
     charger();
   }catch(e){ setMsg('✗ Erreur réseau', true); }
 }
 
 async function envoyerTest(){
   const code=val('adminCode');
-  setMsg('Envoi du test en cours…');
+  setMsg('Envoi des tests en cours…');
   try{
     const r=await fetch('/api/test',{method:'POST',headers:{'Content-Type':'application/json','x-admin-code':code},body:JSON.stringify({adminCode:code})});
     const j=await r.json();
     if(!r.ok){ setMsg('✗ '+(j.error||'Échec de l\'envoi'), true); return; }
-    setMsg('✓ Message de test envoyé. Vérifiez votre WhatsApp dans quelques secondes.');
+    const res=(j.results||[]);
+    const ok=res.filter(x=>x.ok).map(x=>x.nom||'?');
+    const ko=res.filter(x=>x.ok===false).map(x=>(x.nom||'?')+' ('+x.error+')');
+    let m='✓ Tests envoyés. Reçu par : '+(ok.join(', ')||'—');
+    if(ko.length) m+='\n✗ Échecs : '+ko.join(' ; ');
+    setMsg(m, ko.length>0);
   }catch(e){ setMsg('✗ Erreur réseau', true); }
 }
 
 charger();
+if('serviceWorker' in navigator){ window.addEventListener('load', ()=>navigator.serviceWorker.register('/sw.js').catch(()=>{})); }
 </script>
 </body>
 </html>
