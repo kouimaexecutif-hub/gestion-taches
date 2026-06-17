@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestion des tâches journalières</title>
+<style>
+  :root{
+    --vert:#1f7a4d; --vert-clair:#e8f3ec; --bleu:#2563eb;
+    --gris:#f4f5f7; --bordure:#dfe3e8; --texte:#1f2933; --doux:#6b7280;
+    --haute:#dc2626; --moyenne:#d97706; --basse:#16a34a;
+  }
+  *{box-sizing:border-box;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  body{margin:0;background:var(--gris);color:var(--texte);}
+  header{background:var(--vert);color:#fff;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+  header h1{font-size:19px;margin:0;font-weight:600;}
+  header .sub{font-size:13px;opacity:.85;margin-top:2px;}
+  .wrap{padding:20px;max-width:1500px;margin:0 auto;}
+  .barre{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px;}
+  a.lien{color:#fff;text-decoration:none;font-size:14px;font-weight:600;background:rgba(255,255,255,.18);padding:8px 14px;border-radius:8px;}
+  a.lien:hover{background:rgba(255,255,255,.30);}
+  button{cursor:pointer;border:none;border-radius:8px;padding:10px 16px;font-size:14px;font-weight:600;}
+  .btn-vert{background:var(--vert);color:#fff;}
+  .btn-vert:hover{background:#19613d;}
+  .btn-gris{background:#fff;color:var(--texte);border:1px solid var(--bordure);}
+  .btn-gris:hover{background:#f0f0f0;}
+  .stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
+  .stat{background:#fff;border:1px solid var(--bordure);border-radius:10px;padding:12px 18px;min-width:120px;}
+  .stat .n{font-size:24px;font-weight:700;}
+  .stat .l{font-size:12px;color:var(--doux);text-transform:uppercase;letter-spacing:.04em;}
+  .tablecard{background:#fff;border:1px solid var(--bordure);border-radius:12px;overflow:auto;}
+  table{border-collapse:collapse;width:100%;min-width:1300px;}
+  th,td{padding:10px 12px;text-align:left;font-size:13.5px;border-bottom:1px solid var(--bordure);vertical-align:top;}
+  th{background:var(--vert-clair);color:#14532d;font-weight:600;position:sticky;top:0;white-space:nowrap;}
+  tr:hover td{background:#fafbfc;}
+  .pill{display:inline-block;padding:3px 9px;border-radius:20px;font-size:12px;font-weight:600;}
+  .p-haute{background:#fde8e8;color:var(--haute);}
+  .p-moyenne{background:#fef3e2;color:var(--moyenne);}
+  .p-basse{background:#e7f6ec;color:var(--basse);}
+  .e-afaire{background:#eef0f2;color:#4b5563;}
+  .e-encours{background:#e0edff;color:#1d4ed8;}
+  .e-termine{background:#e7f6ec;color:#16a34a;}
+  .e-bloque{background:#fde8e8;color:#dc2626;}
+  .prog{height:8px;background:#eceff1;border-radius:6px;overflow:hidden;min-width:80px;}
+  .prog > div{height:100%;background:var(--vert);}
+  .cell-actions button{padding:5px 9px;font-size:12px;margin-right:4px;}
+  .vide{padding:40px;text-align:center;color:var(--doux);}
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-start;justify-content:center;padding:30px 16px;overflow:auto;z-index:50;}
+  .overlay.show{display:flex;}
+  .modal{background:#fff;border-radius:14px;width:100%;max-width:620px;padding:24px;}
+  .modal h2{margin:0 0 4px;font-size:18px;}
+  .modal p.aide{margin:0 0 18px;font-size:13px;color:var(--doux);}
+  .champ{margin-bottom:14px;}
+  .champ label{display:block;font-size:13px;font-weight:600;margin-bottom:5px;}
+  .champ input,.champ select,.champ textarea{width:100%;padding:9px 11px;border:1px solid var(--bordure);border-radius:8px;font-size:14px;}
+  .champ textarea{min-height:60px;resize:vertical;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px;}
+  .badge-sync{font-size:12px;padding:4px 10px;border-radius:20px;background:rgba(255,255,255,.2);}
+  @media(max-width:560px){.grid2{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1 id="titreApp">Gestion des tâches journalières</h1>
+    <div class="sub" id="sousTitre">Suivi quotidien · récap WhatsApp automatique</div>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center;">
+    <a class="lien" href="/config.html">⚙ Configuration</a>
+    <span class="badge-sync" id="syncBadge">Chargement…</span>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="stats" id="stats"></div>
+
+  <div class="barre">
+    <button class="btn-vert" onclick="ouvrirModal()">+ Nouvelle tâche</button>
+    <button class="btn-gris" onclick="chargerTaches()">↻ Rafraîchir</button>
+    <button class="btn-gris" onclick="apercuRecap()">👁 Aperçu du récap WhatsApp</button>
+  </div>
+
+  <div class="tablecard">
+    <table>
+      <thead>
+        <tr>
+          <th>Tâche</th>
+          <th>Description</th>
+          <th>Comment réaliser la tâche</th>
+          <th>Avec quelles ressources</th>
+          <th>Priorité</th>
+          <th>Date de début</th>
+          <th>Date d'échéance</th>
+          <th>État</th>
+          <th>% terminé</th>
+          <th>Notes</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="vide" id="vide" style="display:none;">Aucune tâche pour le moment. Cliquez sur « + Nouvelle tâche ».</div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2 id="modalTitre">Nouvelle tâche</h2>
+    <p class="aide">Les champs « Comment réaliser » et « Ressources » précisent la méthode et les moyens nécessaires.</p>
+    <input type="hidden" id="f-id">
+    <div class="champ">
+      <label>Tâche *</label>
+      <input id="f-tache" placeholder="Ex : Réviser le dossier EIES Mine X">
+    </div>
+    <div class="champ">
+      <label>Description</label>
+      <textarea id="f-description" placeholder="De quoi s'agit-il ?"></textarea>
+    </div>
+    <div class="champ">
+      <label>Comment réaliser la tâche</label>
+      <textarea id="f-comment" placeholder="Les étapes / la méthode pour réaliser la tâche"></textarea>
+    </div>
+    <div class="champ">
+      <label>Avec quelles ressources</label>
+      <textarea id="f-ressources" placeholder="Documents, logiciels, personnes, budget nécessaires"></textarea>
+    </div>
+    <div class="grid2">
+      <div class="champ">
+        <label>Priorité</label>
+        <select id="f-priorite"><option>Haute</option><option selected>Moyenne</option><option>Basse</option></select>
+      </div>
+      <div class="champ">
+        <label>État</label>
+        <select id="f-etat" onchange="autoProgres()"><option>À faire</option><option>En cours</option><option>Terminé</option><option>Bloqué</option></select>
+      </div>
+      <div class="champ"><label>Date de début</label><input type="date" id="f-debut"></div>
+      <div class="champ"><label>Date d'échéance</label><input type="date" id="f-echeance"></div>
+      <div class="champ"><label>% terminé</label><input type="number" id="f-progres" min="0" max="100" step="5" value="0"></div>
+    </div>
+    <div class="champ"><label>Notes</label><textarea id="f-notes" placeholder="Remarques, validations…"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn-gris" onclick="fermerModal()">Annuler</button>
+      <button class="btn-vert" onclick="enregistrer()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let taches = [];
+const API='/api/tasks';
+function aujourdhui(){ return new Date().toISOString().slice(0,10); }
+
+async function chargerConfigPublique(){
+  try{
+    const r=await fetch('/api/settings'); const s=(await r.json()).settings||{};
+    if(s.nomEntreprise){ document.getElementById('titreApp').textContent=s.nomEntreprise+' — Gestion des tâches'; document.title=s.nomEntreprise; }
+    if(s.heureRecap){ document.getElementById('sousTitre').textContent='Suivi quotidien · récap WhatsApp automatique à '+s.heureRecap; }
+  }catch(e){}
+}
+
+async function chargerTaches(){
+  setBadge('Synchronisation…');
+  try{
+    const r=await fetch(API); if(!r.ok) throw 0;
+    taches=(await r.json()).tasks||[];
+    setBadge('✓ Synchronisé', true);
+  }catch(e){
+    taches=JSON.parse(localStorage.getItem('taches_vize')||'[]');
+    setBadge('Hors-ligne (local)', false);
+  }
+  rendre();
+}
+async function sauverServeur(){
+  localStorage.setItem('taches_vize', JSON.stringify(taches));
+  try{ await fetch(API,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({tasks:taches})}); setBadge('✓ Enregistré', true);}
+  catch(e){ setBadge('Enregistré en local', false);}
+}
+function setBadge(t,ok){const b=document.getElementById('syncBadge');b.textContent=t;b.style.background=ok===true?'rgba(255,255,255,.30)':(ok===false?'rgba(220,38,38,.5)':'rgba(255,255,255,.2)');}
+function classePriorite(p){return p==='Haute'?'p-haute':p==='Basse'?'p-basse':'p-moyenne';}
+function classeEtat(e){return e==='En cours'?'e-encours':e==='Terminé'?'e-termine':e==='Bloqué'?'e-bloque':'e-afaire';}
+function frDate(d){if(!d)return'—';const[y,m,j]=d.split('-');return `${j}/${m}/${y}`;}
+function esc(s){return (s||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));}
+
+function rendre(){
+  const tb=document.getElementById('tbody');tb.innerHTML='';
+  document.getElementById('vide').style.display=taches.length?'none':'block';
+  taches.forEach(t=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td><strong>${esc(t.tache)}</strong></td>
+      <td>${esc(t.description)||'—'}</td>
+      <td>${esc(t.comment)||'—'}</td>
+      <td>${esc(t.ressources)||'—'}</td>
+      <td><span class="pill ${classePriorite(t.priorite)}">${t.priorite}</span></td>
+      <td>${frDate(t.debut)}</td>
+      <td>${frDate(t.echeance)}</td>
+      <td><span class="pill ${classeEtat(t.etat)}">${t.etat}</span></td>
+      <td><div class="prog"><div style="width:${t.progres||0}%"></div></div><small>${t.progres||0}%</small></td>
+      <td>${esc(t.notes)||'—'}</td>
+      <td class="cell-actions">
+        <button class="btn-gris" onclick="editer('${t.id}')">Modifier</button>
+        <button class="btn-gris" onclick="supprimer('${t.id}')">🗑</button>
+      </td>`;
+    tb.appendChild(tr);
+  });
+  rendreStats();
+}
+function rendreStats(){
+  const total=taches.length, termine=taches.filter(t=>t.etat==='Terminé').length,
+    cours=taches.filter(t=>t.etat==='En cours').length, bloque=taches.filter(t=>t.etat==='Bloqué').length,
+    moy=total?Math.round(taches.reduce((s,t)=>s+(+t.progres||0),0)/total):0;
+  document.getElementById('stats').innerHTML=`
+    <div class="stat"><div class="n">${total}</div><div class="l">Tâches</div></div>
+    <div class="stat"><div class="n">${cours}</div><div class="l">En cours</div></div>
+    <div class="stat"><div class="n">${termine}</div><div class="l">Terminées</div></div>
+    <div class="stat"><div class="n">${bloque}</div><div class="l">Bloquées</div></div>
+    <div class="stat"><div class="n">${moy}%</div><div class="l">Avancement moyen</div></div>`;
+}
+function ouvrirModal(){document.getElementById('modalTitre').textContent='Nouvelle tâche';
+  ['id','tache','description','comment','ressources','notes'].forEach(k=>document.getElementById('f-'+k).value='');
+  document.getElementById('f-priorite').value='Moyenne';document.getElementById('f-etat').value='À faire';
+  document.getElementById('f-debut').value=aujourdhui();document.getElementById('f-echeance').value='';
+  document.getElementById('f-progres').value=0;document.getElementById('overlay').classList.add('show');}
+function fermerModal(){document.getElementById('overlay').classList.remove('show');}
+function autoProgres(){const e=document.getElementById('f-etat').value,p=document.getElementById('f-progres');
+  if(e==='Terminé')p.value=100;else if(e==='À faire')p.value=0;else if(e==='En cours'&&(+p.value===0||+p.value===100))p.value=50;}
+function editer(id){const t=taches.find(x=>x.id===id);if(!t)return;
+  document.getElementById('modalTitre').textContent='Modifier la tâche';
+  document.getElementById('f-id').value=t.id;document.getElementById('f-tache').value=t.tache;
+  document.getElementById('f-description').value=t.description||'';document.getElementById('f-comment').value=t.comment||'';
+  document.getElementById('f-ressources').value=t.ressources||'';document.getElementById('f-priorite').value=t.priorite;
+  document.getElementById('f-etat').value=t.etat;document.getElementById('f-debut').value=t.debut||'';
+  document.getElementById('f-echeance').value=t.echeance||'';document.getElementById('f-progres').value=t.progres||0;
+  document.getElementById('f-notes').value=t.notes||'';document.getElementById('overlay').classList.add('show');}
+function enregistrer(){
+  const tache=document.getElementById('f-tache').value.trim();
+  if(!tache){alert('Le nom de la tâche est obligatoire.');return;}
+  const obj={id:document.getElementById('f-id').value||('t'+Date.now()),tache,
+    description:document.getElementById('f-description').value.trim(),
+    comment:document.getElementById('f-comment').value.trim(),
+    ressources:document.getElementById('f-ressources').value.trim(),
+    priorite:document.getElementById('f-priorite').value,etat:document.getElementById('f-etat').value,
+    debut:document.getElementById('f-debut').value,echeance:document.getElementById('f-echeance').value,
+    progres:+document.getElementById('f-progres').value||0,notes:document.getElementById('f-notes').value.trim()};
+  const i=taches.findIndex(x=>x.id===obj.id);if(i>=0)taches[i]=obj;else taches.push(obj);
+  fermerModal();rendre();sauverServeur();}
+function supprimer(id){if(!confirm('Supprimer cette tâche ?'))return;taches=taches.filter(x=>x.id!==id);rendre();sauverServeur();}
+function apercuRecap(){
+  const t=aujourdhui();
+  const dujour=taches.filter(x=>x.etat!=='Terminé');
+  if(!taches.length){alert('Aucune tâche.');return;}
+  let txt='*Récap des tâches — '+frDate(t)+'*\n\n';
+  (dujour.length?dujour:taches).forEach(x=>{txt+=`• ${x.tache} — ${x.etat} (${x.progres||0}%)${x.priorite==='Haute'?' ⚠️':''}\n`;});
+  const base=dujour.length?dujour:taches;
+  const moy=Math.round(base.reduce((s,x)=>s+(+x.progres||0),0)/base.length);
+  txt+='\nAvancement moyen : '+moy+'%';
+  alert(txt);}
+chargerConfigPublique();
+chargerTaches();
+</script>
+</body>
+</html>

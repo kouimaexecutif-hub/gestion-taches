@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Configuration — Gestion des tâches</title>
+<style>
+  :root{--vert:#1f7a4d;--vert-clair:#e8f3ec;--gris:#f4f5f7;--bordure:#dfe3e8;--texte:#1f2933;--doux:#6b7280;--rouge:#dc2626;}
+  *{box-sizing:border-box;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  body{margin:0;background:var(--gris);color:var(--texte);}
+  header{background:var(--vert);color:#fff;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;}
+  header h1{font-size:18px;margin:0;}
+  a.lien{color:#fff;text-decoration:none;background:rgba(255,255,255,.18);padding:8px 14px;border-radius:8px;font-size:14px;font-weight:600;}
+  .wrap{max-width:760px;margin:24px auto;padding:0 18px;}
+  .carte{background:#fff;border:1px solid var(--bordure);border-radius:12px;padding:22px;margin-bottom:18px;}
+  .carte h2{margin:0 0 4px;font-size:16px;}
+  .carte p.aide{margin:0 0 16px;font-size:13px;color:var(--doux);line-height:1.5;}
+  .champ{margin-bottom:14px;}
+  .champ label{display:block;font-size:13px;font-weight:600;margin-bottom:5px;}
+  .champ input{width:100%;padding:10px 12px;border:1px solid var(--bordure);border-radius:8px;font-size:14px;}
+  .note{font-size:12px;color:var(--doux);margin-top:4px;}
+  button{cursor:pointer;border:none;border-radius:8px;padding:11px 18px;font-size:14px;font-weight:600;}
+  .btn-vert{background:var(--vert);color:#fff;}
+  .btn-gris{background:#fff;color:var(--texte);border:1px solid var(--bordure);}
+  .ok{color:var(--vert);font-weight:600;}
+  .ko{color:var(--rouge);font-weight:600;}
+  .etat{padding:3px 9px;border-radius:20px;font-size:12px;font-weight:600;}
+  .etat.on{background:#e7f6ec;color:#16a34a;}
+  .etat.off{background:#fde8e8;color:#dc2626;}
+  .msg{margin-top:12px;font-size:14px;min-height:20px;}
+  details{margin-top:10px;}
+  summary{cursor:pointer;font-weight:600;font-size:14px;color:var(--vert);}
+  ol{font-size:13.5px;line-height:1.7;color:#374151;}
+  code{background:#eef0f2;padding:1px 5px;border-radius:4px;font-size:12.5px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>⚙ Configuration</h1>
+  <a class="lien" href="/">← Retour aux tâches</a>
+</header>
+
+<div class="wrap">
+
+  <div class="carte">
+    <h2>1. Accès administrateur</h2>
+    <p class="aide">Un code protège cette page de configuration. À la première utilisation, choisissez votre code. Ensuite, il sera demandé pour toute modification.</p>
+    <div class="champ">
+      <label>Code administrateur</label>
+      <input type="password" id="adminCode" placeholder="Votre code secret">
+      <div class="note" id="noteCode"></div>
+    </div>
+  </div>
+
+  <div class="carte">
+    <h2>2. Informations générales</h2>
+    <div class="champ">
+      <label>Nom de l'entreprise / utilisateur</label>
+      <input id="nomEntreprise" placeholder="Ex : Cabinet ViZé">
+    </div>
+    <div class="champ">
+      <label>Heure du récap quotidien</label>
+      <input id="heureRecap" value="07:00" placeholder="07:00">
+      <div class="note">Affichage indicatif. L'envoi automatique est planifié à 07h00 (heure du Gabon).</div>
+    </div>
+    <div class="champ">
+      <label>Numéro WhatsApp destinataire (avec indicatif pays)</label>
+      <input id="whatsappDest" placeholder="+241 06 00 00 00">
+      <div class="note">Format international, ex : <code>+24106000000</code></div>
+    </div>
+  </div>
+
+  <div class="carte">
+    <h2>3. Service d'envoi WhatsApp (Twilio) <span class="etat off" id="etatTwilio">non configuré</span></h2>
+    <p class="aide">Twilio est le « facteur » qui envoie le message WhatsApp. Créez un compte gratuit, puis copiez ici les 3 informations. Le bouton ci-dessous explique chaque étape.</p>
+    <div class="champ">
+      <label>Twilio — Account SID</label>
+      <input id="twilioSid" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+    </div>
+    <div class="champ">
+      <label>Twilio — Auth Token</label>
+      <input type="password" id="twilioToken" placeholder="(laisser vide pour ne pas changer)">
+    </div>
+    <div class="champ">
+      <label>Numéro WhatsApp émetteur Twilio</label>
+      <input id="twilioFrom" placeholder="+14155238886">
+      <div class="note">Pour le bac à sable Twilio, c'est <code>+14155238886</code>.</div>
+    </div>
+    <details>
+      <summary>Comment obtenir ces informations ? (pas à pas)</summary>
+      <ol>
+        <li>Aller sur <code>twilio.com/try-twilio</code> et créer un compte gratuit.</li>
+        <li>Dans la console, ouvrir <b>Messaging → Try it out → Send a WhatsApp message</b>.</li>
+        <li>Suivre l'instruction pour <b>rejoindre le bac à sable</b> : envoyer le code <code>join ...</code> depuis votre WhatsApp au numéro indiqué.</li>
+        <li>Sur la page d'accueil de la console, copier <b>Account SID</b> et <b>Auth Token</b>.</li>
+        <li>Coller les 3 valeurs ci-dessus, puis <b>Enregistrer</b> et <b>Envoyer un test</b>.</li>
+      </ol>
+    </details>
+  </div>
+
+  <div class="carte">
+    <button class="btn-vert" onclick="enregistrer()">💾 Enregistrer la configuration</button>
+    <button class="btn-gris" onclick="envoyerTest()">📲 Envoyer un test WhatsApp</button>
+    <div class="msg" id="msg"></div>
+  </div>
+
+</div>
+
+<script>
+let storageReady=false, codeDejaDefini=false;
+
+async function charger(){
+  try{
+    const r=await fetch('/api/settings'); const j=await r.json();
+    const s=j.settings||{}; storageReady=j.storageReady;
+    document.getElementById('nomEntreprise').value=s.nomEntreprise||'';
+    document.getElementById('heureRecap').value=s.heureRecap||'07:00';
+    document.getElementById('whatsappDest').value=s.whatsappDest||'';
+    document.getElementById('twilioSid').value=s.twilioSid||'';
+    document.getElementById('twilioFrom').value=s.twilioFrom||'';
+    codeDejaDefini=!!s.adminCodeSet;
+    document.getElementById('noteCode').textContent=codeDejaDefini?'Un code existe déjà. Saisissez-le pour modifier la configuration.':'Aucun code défini : celui que vous saisissez deviendra le code administrateur.';
+    const twOk=s.twilioSidSet||s.twilioSid; const et=document.getElementById('etatTwilio');
+    if(s.twilioSid && s.twilioTokenSet && s.twilioFrom){et.textContent='configuré';et.className='etat on';}
+    if(!storageReady){ setMsg('⚠️ Le stockage cloud n\'est pas encore branché : vos réglages risquent de ne pas être conservés. Voir l\'étape « Stockage » dans le guide.', true); }
+  }catch(e){ setMsg('Impossible de charger la configuration.', true); }
+}
+
+function setMsg(t,err){const m=document.getElementById('msg');m.textContent=t;m.className='msg '+(err?'ko':'ok');}
+
+function payload(){
+  const p={
+    nomEntreprise:val('nomEntreprise'), heureRecap:val('heureRecap'),
+    whatsappDest:val('whatsappDest'), twilioSid:val('twilioSid'), twilioFrom:val('twilioFrom')
+  };
+  const tok=val('twilioToken'); if(tok) p.twilioToken=tok;
+  const code=val('adminCode');
+  if(codeDejaDefini) p.adminCodeActuel=code; else if(code) p.nouveauCode=code;
+  return {p, code};
+}
+function val(id){return document.getElementById(id).value.trim();}
+
+async function enregistrer(){
+  const {p, code}=payload();
+  if(!codeDejaDefini && !code){ setMsg('Choisissez d\'abord un code administrateur.', true); return; }
+  setMsg('Enregistrement…');
+  try{
+    const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json','x-admin-code':code},body:JSON.stringify(p)});
+    const j=await r.json();
+    if(!r.ok){ setMsg('✗ '+(j.error||'Erreur'), true); return; }
+    setMsg('✓ Configuration enregistrée.');
+    codeDejaDefini=true; document.getElementById('twilioToken').value='';
+    charger();
+  }catch(e){ setMsg('✗ Erreur réseau', true); }
+}
+
+async function envoyerTest(){
+  const code=val('adminCode');
+  setMsg('Envoi du test en cours…');
+  try{
+    const r=await fetch('/api/test',{method:'POST',headers:{'Content-Type':'application/json','x-admin-code':code},body:JSON.stringify({adminCode:code})});
+    const j=await r.json();
+    if(!r.ok){ setMsg('✗ '+(j.error||'Échec de l\'envoi'), true); return; }
+    setMsg('✓ Message de test envoyé (statut : '+j.status+'). Vérifiez votre WhatsApp.');
+  }catch(e){ setMsg('✗ Erreur réseau', true); }
+}
+
+charger();
+</script>
+</body>
+</html>

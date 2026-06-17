@@ -1,0 +1,7 @@
+{
+  "name": "gestion-taches-journalieres",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Application de gestion des taches journalieres avec recap WhatsApp automatique",
+  "engines": { "node": ">=18" }
+}
