@@ -74,9 +74,117 @@
     .stat{min-width:calc(50% - 6px);flex:1;}
     .modal{padding:18px;}
   }
+
+  /* ================= PAGE DE GARDE =================
+   * Même grammaire que les autres applications ViZé : illustration à
+   * gauche, nom d'un seul tenant, deux slogans, bouton d'entrée.
+   * Vert de la marque, et les couleurs de l'illustration reprennent
+   * l'échelle de priorité de l'application — haute, moyenne, basse. */
+  #vzSplash{position:fixed;inset:0;z-index:99999;cursor:pointer;
+    background:radial-gradient(58% 55% at 30% 42%,#123d28 0%,#08160f 72%);
+    display:flex;align-items:center;justify-content:center;padding:5vw;transition:opacity .6s ease}
+  #vzSplash.vz-hide{opacity:0;visibility:hidden;pointer-events:none}
+  .vz-stage{display:flex;align-items:center;gap:clamp(18px,5vw,72px);max-width:1080px;width:100%;flex-wrap:wrap;justify-content:center}
+  .vz-fig{position:relative;flex:0 0 auto;width:min(44vw,320px)}
+  .vzscene{position:relative;z-index:1;width:100%;height:auto;display:block;filter:drop-shadow(0 14px 30px rgba(31,122,77,.45))}
+  .vz-halo{position:absolute;inset:0;margin:auto;width:78%;height:80%;border-radius:50%;
+    background:radial-gradient(closest-side,rgba(31,122,77,.3),transparent);animation:vzPulse 4s ease-in-out infinite;z-index:0}
+  @keyframes vzPulse{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:.88;transform:scale(1.07)}}
+  .vz-text{flex:1 1 340px;min-width:300px}
+  .vz-title{font-weight:800;line-height:1;letter-spacing:-2px;margin:0;
+    display:flex;align-items:baseline;gap:.16em;flex-wrap:wrap}
+  .vz-title .l1{font-size:clamp(44px,7.6vw,92px);background:linear-gradient(180deg,#7ee2b0,#1f7a4d);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .vz-title .l2{font-size:clamp(44px,7.6vw,92px);color:#fff}
+  .vz-slogan1{font-weight:700;color:#e8f3ec;font-size:clamp(17px,2.5vw,23px);margin:20px 0 4px}
+  .vz-slogan2{font-weight:700;color:#7ee2b0;font-size:clamp(14px,1.9vw,18px);margin:0}
+  .vz-enter{font-weight:800;font-size:17px;color:#fff;cursor:pointer;margin-top:26px;padding:15px 26px;border:none;border-radius:13px;
+    background:linear-gradient(135deg,#269960,#1f7a4d);box-shadow:0 10px 26px rgba(31,122,77,.45);transition:transform .15s ease,box-shadow .15s ease}
+  .vz-enter:hover{transform:translateY(-2px);box-shadow:0 14px 32px rgba(31,122,77,.6)}
+  .vz-subhint{margin-top:10px;font-size:12px;color:#7f8f86}
+  .vz-copy{margin-top:24px;font-weight:700;font-size:12.5px;color:#7f8f86;letter-spacing:.3px}
+  @media(prefers-reduced-motion:reduce){.vz-halo{animation:none}}
+  @media(max-width:640px){.vz-fig{width:min(56vw,200px)}.vz-text{text-align:center}.vz-title{justify-content:center}}
 </style>
 </head>
 <body>
+
+<!-- ================= PAGE DE GARDE ================= -->
+<div id="vzSplash" onclick="vzEnter()">
+  <div class="vz-stage">
+    <div class="vz-fig">
+      <div class="vz-halo"></div>
+      <!-- Ce que fait l'outil : tenir les tâches du jour, chacune à sa
+           priorité, et en envoyer le récapitulatif. Les pastilles reprennent
+           l'échelle de priorité de l'application — haute rouge, moyenne
+           orange, basse verte : les couleurs sont la donnée, pas un décor. -->
+      <svg class="vzscene" viewBox="0 0 280 300" xmlns="http://www.w3.org/2000/svg" role="img"
+           aria-label="Une liste de tâches du jour, chacune à sa priorité, dont part un récapitulatif">
+        <defs>
+          <radialGradient id="gtS"><stop offset="0" stop-color="#000" stop-opacity=".5"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+        </defs>
+        <ellipse cx="132" cy="284" rx="90" ry="10" fill="url(#gtS)"/>
+
+        <!-- la feuille du jour -->
+        <rect x="30" y="26" width="196" height="216" rx="14" fill="#0f2419" stroke="#1f7a4d" stroke-width="3.5"/>
+        <path d="M30 62 H226" stroke="#1f7a4d" stroke-width="2.5" opacity=".6"/>
+        <circle cx="52" cy="44" r="5" fill="#7ee2b0"/>
+        <circle cx="68" cy="44" r="5" fill="#7ee2b0" opacity=".55"/>
+
+        <!-- quatre tâches : priorité à gauche, état à droite -->
+        <g>
+          <circle cx="52" cy="90" r="8" fill="#dc2626"/>
+          <path d="M70 90 h118" stroke="#2f4a3c" stroke-width="7" stroke-linecap="round"/>
+          <path d="M196 86 l5 6 l9 -11" fill="none" stroke="#7ee2b0" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+          <circle cx="52" cy="126" r="8" fill="#d97706"/>
+          <path d="M70 126 h104" stroke="#2f4a3c" stroke-width="7" stroke-linecap="round"/>
+          <path d="M196 122 l5 6 l9 -11" fill="none" stroke="#7ee2b0" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+          <circle cx="52" cy="162" r="8" fill="#d97706"/>
+          <path d="M70 162 h124" stroke="#2f4a3c" stroke-width="7" stroke-linecap="round" opacity=".55"/>
+          <circle cx="203" cy="162" r="8" fill="none" stroke="#4a6a5b" stroke-width="3"/>
+
+          <circle cx="52" cy="198" r="8" fill="#16a34a"/>
+          <path d="M70 198 h96" stroke="#2f4a3c" stroke-width="7" stroke-linecap="round" opacity=".55"/>
+          <circle cx="203" cy="198" r="8" fill="none" stroke="#4a6a5b" stroke-width="3"/>
+        </g>
+
+        <!-- le récapitulatif qui part tout seul -->
+        <path d="M182 246 C204 252 216 254 226 250" fill="none" stroke="#7ee2b0" stroke-width="3.5"
+              stroke-linecap="round" stroke-dasharray="6 8"/>
+        <g transform="translate(222,264)">
+          <path d="M-34 -18 h68 a10 10 0 0 1 10 10 v20 a10 10 0 0 1 -10 10 h-52 l-16 12 v-12 a10 10 0 0 1 -10 -10 v-20 a10 10 0 0 1 10 -10 z"
+                fill="#1f7a4d"/>
+          <g stroke="#eafaf1" stroke-width="3.5" stroke-linecap="round">
+            <path d="M-20 -6 h40"/><path d="M-20 4 h26"/>
+          </g>
+        </g>
+      </svg>
+    </div>
+    <div class="vz-text">
+      <h1 class="vz-title"><span class="l1">Tâches</span><span class="l2">ViZé</span></h1>
+      <p class="vz-slogan1">Le suivi des tâches journalières</p>
+      <p class="vz-slogan2">Récapitulatif WhatsApp automatique.</p>
+      <button class="vz-enter" onclick="vzEnter()">Entrer dans l'application &nbsp;→</button>
+      <div class="vz-subhint">ou cliquez n'importe où pour entrer</div>
+      <div class="vz-copy">© 2026 Cabinet ViZé — Tous droits réservés</div>
+    </div>
+  </div>
+</div>
+<script>
+/* Défini en ligne, avant tout autre script : la page de garde s'affiche dès
+   le premier rendu, et un clic immédiat ne doit pas tomber sur une fonction
+   encore inexistante. Rien d'autre n'appelle vzEnter — la garde ne se lève
+   que sur un geste de l'utilisateur. */
+function vzEnter(){
+  var s = document.getElementById('vzSplash');
+  if (!s || s.classList.contains('vz-hide')) return;
+  s.classList.add('vz-hide');
+  setTimeout(function(){ if (s && s.parentNode) s.style.display = 'none'; }, 650);
+}
+</script>
+
 <header>
   <div>
     <h1 id="titreApp">Gestion des tâches journalières</h1>

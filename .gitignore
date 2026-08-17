@@ -1,0 +1,31 @@
+# Dépendances
+node_modules/
+
+# Secrets et configuration locale
+.env
+.env.*
+!.env.example
+.vercel/
+
+# Documents de travail et archives.
+# Ils n'ont pas leur place dans un dépôt, et surtout pas dans le dossier
+# d'une application déployée : tout fichier présent à la racine devient
+# téléchargeable par quiconque connaît son nom. C'est arrivé à l'application
+# AEIES en juillet 2026.
+# « code administrateur.docx » est visé nommément par les règles ci-dessous :
+# un document qui porte un code d'administration ne doit jamais entrer dans
+# un dépôt, ni voisiner avec des fichiers servis.
+*.docx
+*.xlsx
+*.pptx
+*.pdf
+*.zip
+*.rar
+*.7z
+*.log
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+desktop.ini
+nul
