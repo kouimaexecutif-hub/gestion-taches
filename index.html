@@ -84,6 +84,12 @@
     background:radial-gradient(58% 55% at 30% 42%,#123d28 0%,#08160f 72%);
     display:flex;align-items:center;justify-content:center;padding:5vw;transition:opacity .6s ease}
   #vzSplash.vz-hide{opacity:0;visibility:hidden;pointer-events:none}
+  /* Tant que la garde est affichée, la page qui se trouve derrière elle ne
+     défile pas. Sans ce verrou, l'application — plus haute que l'écran sur les
+     petites largeurs — laisse sa barre de défilement visible le long du bord
+     droit, par-dessus l'écran d'accueil. Le défilement est rendu à
+     l'application dès qu'on entre. */
+  html.vz-lock,html.vz-lock body{overflow:hidden}
   .vz-stage{display:flex;align-items:center;gap:clamp(18px,5vw,72px);max-width:1080px;width:100%;flex-wrap:wrap;justify-content:center}
   .vz-fig{position:relative;flex:0 0 auto;width:min(44vw,320px)}
   .vzscene{position:relative;z-index:1;width:100%;height:auto;display:block;filter:drop-shadow(0 14px 30px rgba(31,122,77,.45))}
@@ -177,9 +183,14 @@
    le premier rendu, et un clic immédiat ne doit pas tomber sur une fonction
    encore inexistante. Rien d'autre n'appelle vzEnter — la garde ne se lève
    que sur un geste de l'utilisateur. */
+/* Le verrou est posé ici, à la lecture de la page, et non au chargement
+   complet : la barre de défilement apparaîtrait sinon le temps d'un
+   clignotement. */
+document.documentElement.classList.add('vz-lock');
 function vzEnter(){
   var s = document.getElementById('vzSplash');
   if (!s || s.classList.contains('vz-hide')) return;
+  document.documentElement.classList.remove('vz-lock');
   s.classList.add('vz-hide');
   setTimeout(function(){ if (s && s.parentNode) s.style.display = 'none'; }, 650);
 }
