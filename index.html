@@ -5,16 +5,47 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gestion des tâches journalières</title>
 <link rel="manifest" href="/manifest.webmanifest">
-<meta name="theme-color" content="#1f7a4d">
+<meta name="theme-color" content="#1F3864">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Tâches ViZé">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link rel="icon" href="/icon-192.png">
 <style>
+  /* =======================================================================
+     Gestion des tâches — charte du cabinet : marine profond & laiton
+     Refonte du 23/08/2026. Le vert d'origine ne venait d'aucun document du
+     cabinet. Les fonds descendent désormais de la marine de charte #1F3864
+     désaturée puis assombrie, et l'or #C9A800 est le seul accent.
+     Deux règles non négociables, mesurées :
+       · l'or ne porte JAMAIS de texte blanc (2,3:1) — c'est --sur-or qui s'y
+         pose, à 7,95:1 ;
+       · l'anneau de focus n'est JAMAIS doré : sur fond clair il disparaît.
+     ======================================================================= */
   :root{
-    --vert:#1f7a4d; --vert-clair:#e8f3ec; --bleu:#2563eb;
-    --gris:#f4f5f7; --bordure:#dfe3e8; --texte:#1f2933; --doux:#6b7280;
-    --haute:#dc2626; --moyenne:#d97706; --basse:#16a34a;
+    color-scheme:light;
+    --vert:#8B7400; --vert-clair:#F6F1DC; --bleu:#2E75B6;
+    --gris:#F5F7FB; --bordure:#DCE3EE; --texte:#12203A; --doux:#4B5A75;
+    --haute:#C1372C; --moyenne:#B4620C; --basse:#4F7F27;
+    --marine:#1F3864; --or:#C9A800; --or-lum:#E9C93A; --sur-or:#07142A;
+    --surface:#FFFFFF; --surface-2:#F7F9FC; --surface-3:#ECF1F8;
+    --focus:#2E75B6; --focus-halo:rgba(46,117,182,.26);
+    --verre:rgba(255,255,255,.70); --verre-haut:rgba(255,255,255,.94);
+    --verre-bord:rgba(18,32,58,.09); --verre-flou:blur(18px) saturate(150%);
+    --ombre:0 14px 34px rgba(18,32,58,.10);
+    --ease:cubic-bezier(.22,1,.36,1);
+  }
+  /* Mode sombre. L'or vif y porte le texte (8,5:1 sur l'abysse) ; sur blanc il
+     tomberait à 2,3:1, d'où le #8B7400 du thème clair. */
+  [data-theme="sombre"]{
+    color-scheme:dark;
+    --vert:#E9C93A; --vert-clair:rgba(201,168,0,.14); --bleu:#4E9CD4;
+    --gris:#060B16; --bordure:#1E2B47; --texte:#EEF2F8; --doux:#93A4C0;
+    --haute:#F0655A; --moyenne:#F08A24; --basse:#7FC24A;
+    --surface:#0C1526; --surface-2:#0A1120; --surface-3:#13203A;
+    --focus:#4E9CD4; --focus-halo:rgba(78,156,212,.30);
+    --verre:rgba(255,255,255,.055); --verre-haut:rgba(255,255,255,.13);
+    --verre-bord:rgba(255,255,255,.10);
+    --ombre:0 18px 44px rgba(0,0,0,.55);
   }
   *{box-sizing:border-box;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
   body{margin:0;background:var(--gris);color:var(--texte);}
@@ -27,7 +58,7 @@
   a.lien:hover{background:rgba(255,255,255,.30);}
   button{cursor:pointer;border:none;border-radius:8px;padding:10px 16px;font-size:14px;font-weight:600;}
   .btn-vert{background:var(--vert);color:#fff;}
-  .btn-vert:hover{background:#19613d;}
+  .btn-vert:hover{background:linear-gradient(135deg,#F4D95E,#D8B506);}
   .btn-gris{background:#fff;color:var(--texte);border:1px solid var(--bordure);}
   .btn-gris:hover{background:#f0f0f0;}
   select.filtre{padding:10px 12px;border:1px solid var(--bordure);border-radius:8px;font-size:14px;background:#fff;}
@@ -81,7 +112,9 @@
    * Vert de la marque, et les couleurs de l'illustration reprennent
    * l'échelle de priorité de l'application — haute, moyenne, basse. */
   #vzSplash{position:fixed;inset:0;z-index:99999;cursor:pointer;
-    background:radial-gradient(58% 55% at 30% 42%,#123d28 0%,#08160f 72%);
+    /* Valeurs reprises telles quelles d'AEIES, la reference de la grammaire
+       des pages de garde ViZe : marine, pas vert. */
+    background:radial-gradient(58% 55% at 30% 42%,#1c2f57 0%,#0d1526 72%);
     display:flex;align-items:center;justify-content:center;padding:5vw;transition:opacity .6s ease}
   #vzSplash.vz-hide{opacity:0;visibility:hidden;pointer-events:none}
   /* Tant que la garde est affichée, la page qui se trouve derrière elle ne
@@ -92,26 +125,160 @@
   html.vz-lock,html.vz-lock body{overflow:hidden}
   .vz-stage{display:flex;align-items:center;gap:clamp(18px,5vw,72px);max-width:1080px;width:100%;flex-wrap:wrap;justify-content:center}
   .vz-fig{position:relative;flex:0 0 auto;width:min(44vw,320px)}
-  .vzscene{position:relative;z-index:1;width:100%;height:auto;display:block;filter:drop-shadow(0 14px 30px rgba(31,122,77,.45))}
+  .vzscene{position:relative;z-index:1;width:100%;height:auto;display:block;filter:drop-shadow(0 14px 30px rgba(201,168,0,.45))}
   .vz-halo{position:absolute;inset:0;margin:auto;width:78%;height:80%;border-radius:50%;
-    background:radial-gradient(closest-side,rgba(31,122,77,.3),transparent);animation:vzPulse 4s ease-in-out infinite;z-index:0}
+    background:radial-gradient(closest-side,rgba(201,168,0,.3),transparent);animation:vzPulse 4s ease-in-out infinite;z-index:0}
   @keyframes vzPulse{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:.88;transform:scale(1.07)}}
   .vz-text{flex:1 1 340px;min-width:300px}
   .vz-title{font-weight:800;line-height:1;letter-spacing:-2px;margin:0;
     display:flex;align-items:baseline;gap:.16em;flex-wrap:wrap}
-  .vz-title .l1{font-size:clamp(44px,7.6vw,92px);background:linear-gradient(180deg,#7ee2b0,#1f7a4d);
+  .vz-title .l1{font-size:clamp(44px,7.6vw,92px);background:linear-gradient(180deg,#ffe07a,#C9A800);
     -webkit-background-clip:text;background-clip:text;color:transparent}
   .vz-title .l2{font-size:clamp(44px,7.6vw,92px);color:#fff}
-  .vz-slogan1{font-weight:700;color:#e8f3ec;font-size:clamp(17px,2.5vw,23px);margin:20px 0 4px}
-  .vz-slogan2{font-weight:700;color:#7ee2b0;font-size:clamp(14px,1.9vw,18px);margin:0}
-  .vz-enter{font-weight:800;font-size:17px;color:#fff;cursor:pointer;margin-top:26px;padding:15px 26px;border:none;border-radius:13px;
-    background:linear-gradient(135deg,#269960,#1f7a4d);box-shadow:0 10px 26px rgba(31,122,77,.45);transition:transform .15s ease,box-shadow .15s ease}
-  .vz-enter:hover{transform:translateY(-2px);box-shadow:0 14px 32px rgba(31,122,77,.6)}
-  .vz-subhint{margin-top:10px;font-size:12px;color:#7f8f86}
-  .vz-copy{margin-top:24px;font-weight:700;font-size:12.5px;color:#7f8f86;letter-spacing:.3px}
+  .vz-slogan1{font-weight:700;color:#EEF2F8;font-size:clamp(17px,2.5vw,23px);margin:20px 0 4px}
+  .vz-slogan2{font-weight:700;color:#ffd94d;font-size:clamp(14px,1.9vw,18px);margin:0}
+  .vz-enter{font-weight:800;font-size:17px;color:#1F3864;cursor:pointer;margin-top:26px;padding:15px 26px;border:none;border-radius:13px;
+    background:linear-gradient(135deg,#ffe07a,#C9A800);box-shadow:0 10px 26px rgba(201,168,0,.4);transition:transform .15s ease,box-shadow .15s ease}
+  .vz-enter:hover{transform:translateY(-2px);box-shadow:0 14px 32px rgba(201,168,0,.6)}
+  .vz-subhint{margin-top:10px;font-size:12px;color:#8b98b3}
+  .vz-copy{margin-top:24px;font-weight:700;font-size:12.5px;color:#8b98b3;letter-spacing:.3px}
   @media(prefers-reduced-motion:reduce){.vz-halo{animation:none}}
   @media(max-width:640px){.vz-fig{width:min(56vw,200px)}.vz-text{text-align:center}.vz-title{justify-content:center}}
+  /* =======================================================================
+     MODERNISATION — 23/08/2026. Bloc placé en DERNIER : il corrige les règles
+     qui précèdent sans les réécrire. Pour revenir en arrière, le supprimer et
+     restaurer le :root d'origine.
+     ======================================================================= */
+  body{background:var(--gris);color:var(--texte)}
+  body::before{
+    content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+    background:
+      radial-gradient(58% 42% at 12% 0%, rgba(31,56,100,.07), transparent 68%),
+      radial-gradient(44% 34% at 92% 4%, rgba(201,168,0,.09), transparent 70%);
+  }
+  [data-theme="sombre"] body::before{
+    background:
+      radial-gradient(58% 42% at 12% 0%, rgba(31,56,100,.55), transparent 68%),
+      radial-gradient(44% 34% at 92% 4%, rgba(201,168,0,.10), transparent 70%);
+  }
+
+  /* ---- L'en-tête à la marine, et l'or en accent ------------------------- */
+  header{
+    background:linear-gradient(135deg,var(--marine) 0%,#152744 58%,#0E1B31 100%);
+    position:relative;
+  }
+  header::after{
+    content:"";position:absolute;left:0;right:0;bottom:0;height:3px;
+    background:linear-gradient(90deg,var(--basse),var(--moyenne) 50%,var(--haute));
+  }
+
+  /* ---- L'or ne porte jamais de blanc : #FFF sur #C9A800 = 2,31:1 -------- */
+  .btn-vert{
+    background:linear-gradient(135deg,#E9C93A,#C9A800);color:var(--sur-or);
+    box-shadow:0 8px 20px rgba(201,168,0,.22);
+    transition:transform .28s var(--ease),box-shadow .28s var(--ease),background .28s var(--ease);
+  }
+  .btn-vert:hover{background:linear-gradient(135deg,#F4D95E,#D8B506);transform:translateY(-2px)}
+
+  /* ---- Anneau de focus — jamais doré ------------------------------------ */
+  input:focus,select:focus,textarea:focus{
+    outline:none;border-color:var(--focus);box-shadow:0 0 0 3px var(--focus-halo);
+  }
+  :is(button,a,input,select,textarea,[tabindex]):focus-visible{
+    outline:2px solid var(--focus);outline-offset:2px;border-radius:9px;
+  }
+
+  /* ---- Verre dépoli ----------------------------------------------------- */
+  .stat,.tablecard,.carte-sankey{
+    background:linear-gradient(158deg,var(--verre-haut),var(--verre));
+    border:1px solid var(--verre-bord);
+    -webkit-backdrop-filter:var(--verre-flou);backdrop-filter:var(--verre-flou);
+    box-shadow:var(--ombre),inset 0 1px 0 rgba(255,255,255,.6);
+  }
+  [data-theme="sombre"] .stat,[data-theme="sombre"] .tablecard,[data-theme="sombre"] .carte-sankey{
+    box-shadow:var(--ombre),inset 0 1px 0 rgba(255,255,255,.09);
+  }
+  .stat{transition:transform .32s var(--ease),border-color .32s var(--ease)}
+  .stat:hover{transform:translateY(-3px);border-color:rgba(201,168,0,.30)}
+  /* Une pastille de couleur par indicateur : elle dit de quoi on parle avant
+     même qu'on lise l'étiquette. */
+  .stat{position:relative;overflow:hidden}
+  .stat::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--doux)}
+  .stat:nth-child(1)::before{background:var(--bleu)}
+  .stat:nth-child(2)::before{background:var(--moyenne)}
+  .stat:nth-child(3)::before{background:var(--basse)}
+  .stat:nth-child(4)::before{background:var(--haute)}
+  .stat:nth-child(5)::before{background:var(--or)}
+
+  /* ---- Champs et tableaux en thème sombre -------------------------------- */
+  [data-theme="sombre"] input,[data-theme="sombre"] select,[data-theme="sombre"] textarea{
+    background:var(--surface-2);color:var(--texte);border-color:var(--bordure);
+  }
+  [data-theme="sombre"] .btn-gris{background:var(--surface-2);color:var(--texte);border-color:var(--bordure)}
+  [data-theme="sombre"] .btn-gris:hover{background:var(--surface-3)}
+  [data-theme="sombre"] select.filtre{background:var(--surface-2);color:var(--texte)}
+  [data-theme="sombre"] table tbody tr:hover{background:var(--surface-3)}
+
+  /* ---- En-tête de tableau ------------------------------------------------
+     #14532d etait un vert fonce pense pour un bandeau vert pale. Sur le voile
+     dore du theme sombre, il devient illisible. */
+  th{background:var(--vert-clair);color:var(--vert);font-weight:700}
+  [data-theme="sombre"] th{background:rgba(201,168,0,.12);color:var(--or-lum)}
+  [data-theme="sombre"] td{border-color:var(--bordure)}
+
+  /* ---- Bouton de thème --------------------------------------------------- */
+  .vz-theme{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:34px;height:32px;border-radius:9px;flex-shrink:0;font-size:14px;line-height:1;
+    border:1px solid rgba(255,255,255,.24);background:rgba(255,255,255,.12);
+    color:#fff;cursor:pointer;
+    transition:transform .3s var(--ease),background .26s var(--ease);
+  }
+  .vz-theme:hover{background:rgba(255,255,255,.22);transform:translateY(-1px)}
+  .vz-theme span{display:block;transition:transform .45s var(--ease)}
+  .vz-theme:hover span{transform:rotate(28deg)}
+
+  /* ---- Diagramme de Sankey ------------------------------------------------
+     Dessiné en SVG natif, sans librairie : l'outil doit rester léger, il est
+     consulté depuis un téléphone plusieurs fois par jour. */
+  .carte-sankey{border-radius:12px;padding:18px 20px;margin-bottom:16px}
+  .carte-sankey h2{font-size:15px;margin:0 0 4px;font-weight:700}
+  .carte-sankey .sous{font-size:12.5px;color:var(--doux);margin-bottom:14px;line-height:1.5}
+  .sk-cadre{overflow-x:auto}
+  .sk-cadre svg{display:block;min-width:560px;width:100%;height:auto}
+  .sk-ruban{transition:opacity .35s var(--ease)}
+  .sk-cadre:hover .sk-ruban{opacity:.24}
+  .sk-cadre .sk-ruban:hover{opacity:.92}
+  .sk-nom{font-size:12.5px;font-weight:600;fill:var(--texte)}
+  .sk-val{font-size:11px;fill:var(--doux)}
+  .sk-tete{font-size:10px;letter-spacing:.16em;font-weight:700;fill:var(--doux)}
+
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
+  }
 </style>
+<script>
+/* Thème — appliqué AVANT le premier rendu : sans cela, un utilisateur en mode
+   sombre verrait un éclair blanc au chargement. Le choix est mémorisé sur
+   l'appareil ; par défaut l'outil reste clair, c'est son usage de journée. */
+(function(){try{if(localStorage.getItem('gt-theme')==='sombre')
+  document.documentElement.setAttribute('data-theme','sombre');}catch(e){}})();
+function vzTheme(){
+  var r=document.documentElement, etaitSombre=r.getAttribute('data-theme')==='sombre';
+  if(etaitSombre){r.removeAttribute('data-theme');}else{r.setAttribute('data-theme','sombre');}
+  try{localStorage.setItem('gt-theme', etaitSombre?'clair':'sombre');}catch(e){}
+  vzThemeRefletUI();
+}
+function vzThemeRefletUI(){
+  var sombre=document.documentElement.getAttribute('data-theme')==='sombre';
+  var m=document.querySelector('meta[name=theme-color]');
+  if(m)m.setAttribute('content', sombre?'#060B16':'#1F3864');
+  var i=document.getElementById('vzThemeIco'); if(i)i.textContent=sombre?'\u2600':'\u263e';
+  var b=document.getElementById('vzThemeBtn');
+  if(b)b.title=sombre?'Passer au th\u00e8me clair':'Passer au th\u00e8me sombre';
+}
+document.addEventListener('DOMContentLoaded',vzThemeRefletUI);
+</script>
 </head>
 <body>
 
@@ -132,20 +299,20 @@
         <ellipse cx="132" cy="284" rx="90" ry="10" fill="url(#gtS)"/>
 
         <!-- la feuille du jour -->
-        <rect x="30" y="26" width="196" height="216" rx="14" fill="#0f2419" stroke="#1f7a4d" stroke-width="3.5"/>
-        <path d="M30 62 H226" stroke="#1f7a4d" stroke-width="2.5" opacity=".6"/>
-        <circle cx="52" cy="44" r="5" fill="#7ee2b0"/>
-        <circle cx="68" cy="44" r="5" fill="#7ee2b0" opacity=".55"/>
+        <rect x="30" y="26" width="196" height="216" rx="14" fill="#0d1526" stroke="#C9A800" stroke-width="3.5"/>
+        <path d="M30 62 H226" stroke="#C9A800" stroke-width="2.5" opacity=".6"/>
+        <circle cx="52" cy="44" r="5" fill="#ffd94d"/>
+        <circle cx="68" cy="44" r="5" fill="#ffd94d" opacity=".55"/>
 
         <!-- quatre tâches : priorité à gauche, état à droite -->
         <g>
           <circle cx="52" cy="90" r="8" fill="#dc2626"/>
           <path d="M70 90 h118" stroke="#2f4a3c" stroke-width="7" stroke-linecap="round"/>
-          <path d="M196 86 l5 6 l9 -11" fill="none" stroke="#7ee2b0" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M196 86 l5 6 l9 -11" fill="none" stroke="#ffd94d" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
 
           <circle cx="52" cy="126" r="8" fill="#d97706"/>
           <path d="M70 126 h104" stroke="#2f4a3c" stroke-width="7" stroke-linecap="round"/>
-          <path d="M196 122 l5 6 l9 -11" fill="none" stroke="#7ee2b0" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M196 122 l5 6 l9 -11" fill="none" stroke="#ffd94d" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
 
           <circle cx="52" cy="162" r="8" fill="#d97706"/>
           <path d="M70 162 h124" stroke="#2f4a3c" stroke-width="7" stroke-linecap="round" opacity=".55"/>
@@ -157,11 +324,11 @@
         </g>
 
         <!-- le récapitulatif qui part tout seul -->
-        <path d="M182 246 C204 252 216 254 226 250" fill="none" stroke="#7ee2b0" stroke-width="3.5"
+        <path d="M182 246 C204 252 216 254 226 250" fill="none" stroke="#ffd94d" stroke-width="3.5"
               stroke-linecap="round" stroke-dasharray="6 8"/>
         <g transform="translate(222,264)">
           <path d="M-34 -18 h68 a10 10 0 0 1 10 10 v20 a10 10 0 0 1 -10 10 h-52 l-16 12 v-12 a10 10 0 0 1 -10 -10 v-20 a10 10 0 0 1 10 -10 z"
-                fill="#1f7a4d"/>
+                fill="#C9A800"/>
           <g stroke="#eafaf1" stroke-width="3.5" stroke-linecap="round">
             <path d="M-20 -6 h40"/><path d="M-20 4 h26"/>
           </g>
@@ -203,6 +370,7 @@ function vzEnter(){
   </div>
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
     <button id="btnInstall" class="lien" style="display:none;cursor:pointer;border:none;" onclick="installerApp()">⬇ Installer l'app</button>
+    <button class="vz-theme" id="vzThemeBtn" onclick="vzTheme()" title="Passer au thème sombre" aria-label="Changer de thème"><span id="vzThemeIco">☾</span></button>
     <a class="lien" href="/config.html">⚙ Configuration</a>
     <span class="badge-sync" id="syncBadge">Chargement…</span>
   </div>
@@ -216,6 +384,14 @@ function vzEnter(){
     <button class="btn-gris" onclick="chargerTaches()">↻ Rafraîchir</button>
     <button class="btn-gris" onclick="apercuRecap()">👁 Aperçu du récap</button>
     <select class="filtre" id="filtreResp" onchange="rendre()"><option value="">Tous les responsables</option></select>
+  </div>
+
+  <div class="carte-sankey" id="carteSankey" style="display:none">
+    <h2>🔀 Qui porte quoi</h2>
+    <div class="sous">Chaque ruban est une tâche : à gauche la personne qui la porte, à droite son état.
+      Le tableau dit ce qu'il y a à faire ; ce diagramme dit comment la charge se répartit — qui a
+      trois tâches bloquées, qui n'a plus rien. Dessiné en SVG, sans aucune librairie.</div>
+    <div class="sk-cadre" id="skCharge"></div>
   </div>
 
   <div class="tablecard">
@@ -361,7 +537,99 @@ function rendre(){
   });
   rendreStats(liste);
 }
+/* =========================================================================
+   QUI PORTE QUOI — diagramme de Sankey
+   Le tableau dit ce qu'il y a a faire. Il ne dit pas COMMENT la charge se
+   repartit : qui a trois taches bloquees, qui n'a plus rien. C'est la seule
+   question qu'un chef d'equipe se pose le matin, et elle ne se lit pas dans
+   une liste triee par echeance.
+   Dessine en SVG natif, sans aucune librairie : l'outil est consulte depuis
+   un telephone plusieurs fois par jour, il doit rester leger.
+   ========================================================================= */
+const SK_ETATS = [
+  ['\u00c0 faire', 'var(--doux)'],
+  ['En cours',     'var(--moyenne)'],
+  ['Bloqu\u00e9',  'var(--haute)'],
+  ['Termin\u00e9', 'var(--basse)']
+];
+const SK_TEINTES = ['var(--bleu)','var(--or)','var(--basse)','var(--moyenne)','var(--haute)','#8296B4','#3E9E9E','#C4763C'];
+function rendreSankeyCharge(liste){
+  const carte = document.getElementById('carteSankey'), cadre = document.getElementById('skCharge');
+  if (!carte || !cadre) return;
+  const flux = {}, totG = {}, totD = {};
+  (liste || []).forEach(t => {
+    const r = (t.responsable || '').trim() || 'Non assign\u00e9';
+    const e = SK_ETATS.some(x => x[0] === t.etat) ? t.etat : '\u00c0 faire';
+    flux[r] = flux[r] || {}; flux[r][e] = (flux[r][e] || 0) + 1;
+    totG[r] = (totG[r] || 0) + 1; totD[e] = (totD[e] || 0) + 1;
+  });
+  /* Les responsables les plus charges en premier : on lit le diagramme de
+     haut en bas comme un classement. */
+  const G = Object.keys(totG).sort((a, b) => totG[b] - totG[a]).slice(0, 8);
+  const D = SK_ETATS.map(x => x[0]).filter(k => totD[k]);
+  const total = G.reduce((a, k) => a + totG[k], 0);
+  /* Sous trois taches, ou avec un seul responsable ET un seul etat, une
+     phrase dit mieux les choses qu'un diagramme. */
+  if (total < 3 || (G.length < 2 && D.length < 2)) { carte.style.display = 'none'; return; }
+  carte.style.display = '';
+
+  const UTILE = 250, ECART = 14, XG = 190, XD = 470, NW = 13, HAUT = 30, MINLBL = 32;
+  const ech = UTILE / total;
+  const hG = UTILE + (G.length - 1) * ECART, hD = UTILE + (D.length - 1) * ECART;
+  const pg = {}, pd = {};
+  let y = HAUT; G.forEach(k => { const hh = totG[k] * ech; pg[k] = {y: y, h: hh, c: y}; y += hh + ECART; });
+  y = HAUT;     D.forEach(k => { const hh = totD[k] * ech; pd[k] = {y: y, h: hh, c: y}; y += hh + ECART; });
+  /* Desencombrement : quand une personne porte l'essentiel de la charge, les
+     autres ont un ruban de moins d'un pixel et les libelles se superposent.
+     Les rubans restent strictement proportionnels ; seuls les libelles
+     s'ecartent, en conservant leur ordre. */
+  function ecarter(pos, cles) {
+    const c = cles.map(k => pos[k].y + pos[k].h / 2);
+    for (let i = 1; i < c.length; i++) if (c[i] - c[i - 1] < MINLBL) c[i] = c[i - 1] + MINLBL;
+    cles.forEach((k, i) => pos[k].lbl = c[i]);
+    return c.length ? c[c.length - 1] : HAUT;
+  }
+  const basG = ecarter(pg, G), basD = ecarter(pd, D);
+  const H = Math.max(HAUT + Math.max(hG, hD), Math.max(basG, basD) + 18) + 16;
+  const colE = k => (SK_ETATS.find(x => x[0] === k) || [,'var(--doux)'])[1];
+  const colR = (k, i) => SK_TEINTES[i % SK_TEINTES.length];
+  const hVis = v => Math.max(2, v);
+  const ech2 = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const rappel = (xa, ya, xb, yb) => Math.abs(ya - yb) < 5 ? '' :
+    '<path d="M' + xa + ',' + ya.toFixed(1) + ' L' + xb + ',' + yb.toFixed(1) + '" stroke="var(--bordure)" stroke-width="1" fill="none"/>';
+
+  const x1 = XG + NW, x2 = XD, mx = (x1 + x2) / 2;
+  let rub = '';
+  G.forEach((a, i) => D.forEach(b => {
+    const v = flux[a] && flux[a][b]; if (!v) return;
+    const hh = v * ech, ga = pg[a].c, da = pd[b].c;
+    pg[a].c += hh; pd[b].c += hh;
+    rub += '<path class="sk-ruban" fill="' + colR(a, i) + '" opacity=".45" d="'
+      + 'M' + x1 + ',' + ga.toFixed(1) + ' C' + mx + ',' + ga.toFixed(1) + ' ' + mx + ',' + da.toFixed(1) + ' ' + x2 + ',' + da.toFixed(1)
+      + ' L' + x2 + ',' + (da + hh).toFixed(1) + ' C' + mx + ',' + (da + hh).toFixed(1) + ' ' + mx + ',' + (ga + hh).toFixed(1) + ' ' + x1 + ',' + (ga + hh).toFixed(1) + ' Z">'
+      + '<title>' + ech2(a) + ' \u2192 ' + b + ' : ' + v + ' t\u00e2che' + (v > 1 ? 's' : '') + '</title></path>';
+  }));
+  let nds = '', etq = '';
+  G.forEach((k, i) => { const q = pg[k];
+    nds += '<rect x="' + XG + '" y="' + q.y.toFixed(1) + '" width="' + NW + '" height="' + hVis(q.h).toFixed(1) + '" rx="3" fill="' + colR(k, i) + '"/>';
+    etq += rappel(XG - 8, q.y + q.h / 2, XG - 2, q.lbl)
+        + '<text class="sk-nom" x="' + (XG - 14) + '" y="' + (q.lbl - 2).toFixed(1) + '" text-anchor="end">' + ech2(k) + '</text>'
+        + '<text class="sk-val" x="' + (XG - 14) + '" y="' + (q.lbl + 13).toFixed(1) + '" text-anchor="end">' + totG[k] + ' t\u00e2che' + (totG[k] > 1 ? 's' : '') + ' \u00b7 ' + Math.round(totG[k] / total * 100) + ' %</text>';
+  });
+  D.forEach(k => { const q = pd[k];
+    nds += '<rect x="' + XD + '" y="' + q.y.toFixed(1) + '" width="' + NW + '" height="' + hVis(q.h).toFixed(1) + '" rx="3" fill="' + colE(k) + '"/>';
+    etq += rappel(XD + NW + 8, q.y + q.h / 2, XD + NW + 2, q.lbl)
+        + '<text class="sk-nom" x="' + (XD + 24) + '" y="' + (q.lbl - 2).toFixed(1) + '">' + k + '</text>'
+        + '<text class="sk-val" x="' + (XD + 24) + '" y="' + (q.lbl + 13).toFixed(1) + '">' + totD[k] + ' t\u00e2che' + (totD[k] > 1 ? 's' : '') + ' \u00b7 ' + Math.round(totD[k] / total * 100) + ' %</text>';
+  });
+  cadre.innerHTML = '<svg viewBox="0 0 780 ' + Math.round(H) + '" role="img" aria-label="Diagramme de Sankey reliant chaque responsable a l\u2019etat de ses taches.">'
+    + '<text class="sk-tete" x="0" y="14">RESPONSABLE</text>'
+    + '<text class="sk-tete" x="780" y="14" text-anchor="end">\u00c9TAT DE LA T\u00c2CHE</text>'
+    + '<g>' + rub + '</g>' + nds + etq + '</svg>';
+}
+
 function rendreStats(liste){
+  rendreSankeyCharge(liste);
   const total=liste.length, termine=liste.filter(t=>t.etat==='Terminé').length,
     cours=liste.filter(t=>t.etat==='En cours').length, bloque=liste.filter(t=>t.etat==='Bloqué').length,
     moy=total?Math.round(liste.reduce((s,t)=>s+(+t.progres||0),0)/total):0;

@@ -29,3 +29,7 @@ node_modules/
 Thumbs.db
 desktop.ini
 nul
+
+# Sauvegardes locales avant refonte — ne pas publier
+*.bak-*
+_capture.html
