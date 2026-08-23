@@ -1,0 +1,22 @@
+# Couleurs en dur examinees et acceptees — gestion des tâches
+#
+# Une ligne = une couleur, puis un espace, puis la raison.
+# Retirer une ligne fait ressortir la couleur au prochain controle 2.
+# Engendre par _controles/proposer-exceptions.py, puis relu a la main.
+
+#000                   page de garde — valeur recopiee d'AEIES a l'identique ; la coherence des huit ecrans d'accueil est l'objet meme de la regle
+#060b16                page de garde — valeur recopiee d'AEIES a l'identique ; la coherence des huit ecrans d'accueil est l'objet meme de la regle
+#0d1526                page de garde — valeur recopiee d'AEIES a l'identique ; la coherence des huit ecrans d'accueil est l'objet meme de la regle
+#0e1b31                page de garde — valeur recopiee d'AEIES a l'identique ; la coherence des huit ecrans d'accueil est l'objet meme de la regle
+#152744                page de garde — valeur recopiee d'AEIES a l'identique ; la coherence des huit ecrans d'accueil est l'objet meme de la regle
+#1c2f57                page de garde — valeur recopiee d'AEIES a l'identique ; la coherence des huit ecrans d'accueil est l'objet meme de la regle
+#2f4a3c                page de garde — valeur recopiee d'AEIES a l'identique ; la coherence des huit ecrans d'accueil est l'objet meme de la regle
+#4a6a5b                page de garde — valeur recopiee d'AEIES a l'identique ; la coherence des huit ecrans d'accueil est l'objet meme de la regle
+#8b98b3                page de garde — valeur recopiee d'AEIES a l'identique ; la coherence des huit ecrans d'accueil est l'objet meme de la regle
+#d97706                page de garde — valeur recopiee d'AEIES a l'identique ; la coherence des huit ecrans d'accueil est l'objet meme de la regle
+#eafaf1                page de garde — valeur recopiee d'AEIES a l'identique ; la coherence des huit ecrans d'accueil est l'objet meme de la regle
+#eef2f8                page de garde — valeur recopiee d'AEIES a l'identique ; la coherence des huit ecrans d'accueil est l'objet meme de la regle
+#ffd94d                page de garde — valeur recopiee d'AEIES a l'identique ; la coherence des huit ecrans d'accueil est l'objet meme de la regle
+#ffe07a                page de garde — valeur recopiee d'AEIES a l'identique ; la coherence des huit ecrans d'accueil est l'objet meme de la regle
+rgba(201,168,0         page de garde — valeur recopiee d'AEIES a l'identique ; la coherence des huit ecrans d'accueil est l'objet meme de la regle
+rgba(31,56,100         page de garde — valeur recopiee d'AEIES a l'identique ; la coherence des huit ecrans d'accueil est l'objet meme de la regle
