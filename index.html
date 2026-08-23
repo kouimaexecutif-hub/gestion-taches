@@ -516,15 +516,35 @@ async function sauverServeur(){
   catch(e){ setBadge('Enregistré en local', false);}
 }
 function setBadge(t,ok){const b=document.getElementById('syncBadge');b.textContent=t;b.style.background=ok===true?'rgba(255,255,255,.30)':(ok===false?'rgba(220,38,38,.5)':'rgba(255,255,255,.2)');}
+/* Ces trois champs venaient de l'API et etaient inseres SANS echappement :
+   l'etat et la priorite dans le corps d'une pastille, l'avancement dans un
+   attribut style, l'identifiant dans une chaine JavaScript a l'interieur d'un
+   attribut onclick. Comme /api/tasks accepte l'ecriture sans authentification,
+   n'importe qui pouvait y deposer une tache dont l'etat contient du balisage :
+   celui-ci s'executait ensuite dans le navigateur du cabinet. Controle de
+   vulnerabilite du 24/08/2026. */
+function pct(v){ const n = Number(v); return (isFinite(n) && n >= 0 && n <= 100) ? Math.round(n) : 0; }
 function classePriorite(p){return p==='Haute'?'p-haute':p==='Basse'?'p-basse':'p-moyenne';}
 function classeEtat(e){return e==='En cours'?'e-encours':e==='Terminé'?'e-termine':e==='Bloqué'?'e-bloque':'e-afaire';}
 function frDate(d){if(!d)return'—';const[y,m,j]=d.split('-');return `${j}/${m}/${y}`;}
-function esc(s){return (s||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));}
+/* Le guillemet et l'apostrophe DOIVENT etre echappes : sans eux, une valeur
+   posee dans un attribut peut le refermer et en ouvrir un autre. C'est pour
+   cette meme raison que les deux boutons d'action n'appellent plus de fonction
+   en ligne — un identifiant place dans onclick traverse DEUX analyseurs, HTML
+   puis JavaScript, et aucun echappement simple n'est juste pour les deux. Ils
+   portent un data-id, et un seul ecouteur delegue sur le tableau. */
+function esc(s){return String(s==null?'':s).replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));}
 
 function rendre(){
   const filtre=document.getElementById('filtreResp')?document.getElementById('filtreResp').value:'';
   const liste=filtre?taches.filter(t=>(t.responsable||'')===filtre):taches;
   const tb=document.getElementById('tbody');tb.innerHTML='';
+  if(!tb.dataset.delegue){ tb.dataset.delegue='1';
+    tb.addEventListener('click', ev => {
+      const b = ev.target.closest('button[data-act]'); if(!b) return;
+      if(b.dataset.act==='editer') editer(b.dataset.id); else supprimer(b.dataset.id);
+    });
+  }
   document.getElementById('vide').style.display=liste.length?'none':'block';
   liste.forEach(t=>{
     const tr=document.createElement('tr');
@@ -534,15 +554,15 @@ function rendre(){
       <td>${esc(t.comment)||'—'}</td>
       <td>${esc(t.ressources)||'—'}</td>
       <td>${t.responsable?`<span class="resp">${esc(t.responsable)}</span>`:'—'}</td>
-      <td><span class="pill ${classePriorite(t.priorite)}">${t.priorite}</span></td>
+      <td><span class="pill ${classePriorite(t.priorite)}">${esc(t.priorite)}</span></td>
       <td>${frDate(t.debut)}</td>
       <td>${frDate(t.echeance)}</td>
-      <td><span class="pill ${classeEtat(t.etat)}">${t.etat}</span></td>
-      <td><div class="prog"><div style="width:${t.progres||0}%"></div></div><small>${t.progres||0}%</small></td>
+      <td><span class="pill ${classeEtat(t.etat)}">${esc(t.etat)}</span></td>
+      <td><div class="prog"><div style="width:${pct(t.progres)}%"></div></div><small>${pct(t.progres)}%</small></td>
       <td>${esc(t.notes)||'—'}</td>
       <td class="cell-actions">
-        <button class="btn-gris" onclick="editer('${t.id}')">Modifier</button>
-        <button class="btn-gris" onclick="supprimer('${t.id}')">🗑</button>
+        <button class="btn-gris" data-act="editer" data-id="${esc(String(t.id))}">Modifier</button>
+        <button class="btn-gris" data-act="supprimer" data-id="${esc(String(t.id))}">🗑</button>
       </td>`;
     tb.appendChild(tr);
   });
