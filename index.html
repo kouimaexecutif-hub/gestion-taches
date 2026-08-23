@@ -23,9 +23,15 @@
      ======================================================================= */
   :root{
     color-scheme:light;
-    --vert:#8B7400; --vert-clair:#F6F1DC; --bleu:#2E75B6;
+    /* --vert porte l'or de la charte (le nom date de l'ancienne palette).
+       #8B7400 tenait 4,03:1 sur l'en-tete de tableau, teinte d'or ; #7A6600
+       y tient 5,19:1. */
+    --vert:#7A6600; --vert-clair:#F6F1DC; --bleu:#2A6BA6;
     --gris:#F5F7FB; --bordure:#DCE3EE; --texte:#12203A; --doux:#4B5A75;
-    --haute:#C1372C; --moyenne:#B4620C; --basse:#4F7F27;
+    /* Controle 3, 23/08/2026 : mesurees sur le VOILE de leur pastille et non
+       sur du blanc, ces trois encres tombaient a 4,08 et 4,27:1. Un cran plus
+       sombre : 5,23 et 5,36:1. */
+    --haute:#B0311F; --moyenne:#9C5309; --basse:#456E22;
     --marine:#1F3864; --or:#C9A800; --or-lum:#E9C93A; --sur-or:#07142A;
     --surface:#FFFFFF; --surface-2:#F7F9FC; --surface-3:#ECF1F8;
     --focus:#2E75B6; --focus-halo:rgba(46,117,182,.26);
@@ -75,11 +81,16 @@
   .p-haute{background:#fde8e8;color:var(--haute);}
   .p-moyenne{background:#fef3e2;color:var(--moyenne);}
   .p-basse{background:#e7f6ec;color:var(--basse);}
-  .e-afaire{background:#eef0f2;color:#4b5563;}
-  .e-encours{background:#e0edff;color:#1d4ed8;}
-  .e-termine{background:#e7f6ec;color:#16a34a;}
-  .e-bloque{background:#fde8e8;color:#dc2626;}
-  .resp{display:inline-block;padding:3px 9px;border-radius:20px;font-size:12px;font-weight:600;background:#ede9fe;color:#6d28d9;}
+  /* Quatre encres hors charte, mesurees sur le voile de leur propre pastille :
+     « Termine » tenait 2,95:1 et « Bloque » 4,11:1. Elles n'etaient pas
+     apparues au premier controle parce que le jeu d'essai employait un nom de
+     champ errone : toutes les lignes affichaient « undefined », et aucune
+     pastille d'etat n'etait rendue. Un jeu d'essai faux cache des defauts. */
+  .e-afaire{background:#eef0f2;color:#41485A;}
+  .e-encours{background:#e0edff;color:#1B4FB5;}
+  .e-termine{background:#e7f6ec;color:var(--basse);}
+  .e-bloque{background:#fde8e8;color:var(--haute);}
+  .resp{display:inline-block;padding:3px 9px;border-radius:20px;font-size:12px;font-weight:600;background:#ede9fe;color:#5B2192;}
   .prog{height:8px;background:#eceff1;border-radius:6px;overflow:hidden;min-width:80px;}
   .prog > div{height:100%;background:var(--vert);}
   .cell-actions button{padding:5px 9px;font-size:12px;margin-right:4px;}
