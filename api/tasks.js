@@ -1,7 +1,12 @@
 const { getJSON, setJSON, readBody } = require('../lib/store');
+const { refuse } = require('../lib/garde');
 
 module.exports = async (req, res) => {
   try {
+    // Lecture ET ecriture derriere le code administrateur : les titres des
+    // taches nomment les clients du cabinet, et l'ecriture ouverte permettait
+    // a un inconnu de reecrire le registre ou d'y deposer du balisage.
+    if (await refuse(req, res)) return;
     if (req.method === 'GET') {
       const tasks = await getJSON('tasks', []);
       return res.status(200).json({ tasks });

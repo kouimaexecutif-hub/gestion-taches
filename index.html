@@ -122,6 +122,21 @@
    * gauche, nom d'un seul tenant, deux slogans, bouton d'entrée.
    * Vert de la marque, et les couleurs de l'illustration reprennent
    * l'échelle de priorité de l'application — haute, moyenne, basse. */
+  #porte{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;
+    background:var(--gris);padding:20px}
+  #porte[hidden]{display:none}
+  #porteForm{background:#fff;border:1px solid var(--bordure);border-radius:16px;padding:28px 26px;
+    width:min(400px,100%);box-shadow:0 18px 40px -22px rgba(18,32,58,.45)}
+  #porteForm h1{margin:0 0 4px;font-size:20px;color:var(--texte)}
+  #porteForm p{margin:0 0 18px;font-size:13px;color:var(--doux);line-height:1.5}
+  #porteForm label{display:block;font-size:12px;font-weight:700;color:var(--doux);margin-bottom:5px}
+  #porteForm input{width:100%;padding:11px 13px;border:1px solid var(--bordure);border-radius:10px;
+    font-size:15px;color:var(--texte);background:#fff}
+  #porteForm input:focus{outline:2px solid var(--bleu);outline-offset:1px;border-color:var(--bleu)}
+  #porteForm button{width:100%;margin-top:16px;padding:12px;border:none;border-radius:10px;
+    background:var(--vert);color:#fff;font-size:15px;font-weight:700;cursor:pointer}
+  #porteForm button:hover{background:#6E5C00}
+  #porteMsg{min-height:18px;margin-top:9px;font-size:12.5px;font-weight:600;color:var(--haute)}
   #vzSplash{position:fixed;inset:0;z-index:99999;cursor:pointer;
     /* Valeurs reprises telles quelles d'AEIES, la reference de la grammaire
        des pages de garde ViZe : marine, pas vert. */
@@ -292,6 +307,22 @@ document.addEventListener('DOMContentLoaded',vzThemeRefletUI);
 </script>
 </head>
 <body>
+
+<!-- ================= PORTE D'ACCÈS =================
+     Le registre des tâches nomme les clients du cabinet. Il est derrière le
+     code administrateur — le même que celui de la page Configuration. Le code
+     est retenu pour la durée de l'onglet (sessionStorage), pas au-delà. -->
+<div id="porte" hidden>
+  <form id="porteForm" autocomplete="on">
+    <h1>Gestion des tâches</h1>
+    <p>Registre interne du Cabinet ViZé. Saisissez le code d'accès.</p>
+    <label for="porteCode">Code d'accès</label>
+    <input type="password" id="porteCode" name="password" autocomplete="current-password"
+           placeholder="Code administrateur" required autofocus>
+    <div id="porteMsg" role="alert"></div>
+    <button type="submit">Entrer</button>
+  </form>
+</div>
 
 <!-- ================= PAGE DE GARDE ================= -->
 <div id="vzSplash" onclick="vzEnter()">
@@ -479,11 +510,56 @@ function vzEnter(){
 let taches = [];
 let responsables = [];
 const API='/api/tasks';
+
+/* ---- Code d'acces ---------------------------------------------------------
+   Un seul code, partage, le meme qu'en page Configuration. Il est garde pour la
+   duree de l'onglet et jamais ecrit sur le disque : fermer l'onglet le retire.
+   appelApi() l'ajoute a chaque requete ; si le serveur repond 401, la porte se
+   rouvre au lieu de basculer en silence sur la copie locale — un desaccord
+   silencieux entre l'ecran et la base est pire qu'un refus visible. */
+const CLE_SESSION='gt_code';
+function codeAcces(){ try{ return sessionStorage.getItem(CLE_SESSION)||''; }catch(e){ return ''; } }
+function poserCode(c){ try{ sessionStorage.setItem(CLE_SESSION,c); }catch(e){} }
+function oublierCode(){ try{ sessionStorage.removeItem(CLE_SESSION); }catch(e){} }
+
+let resoudrePorte=null;
+function ouvrirPorte(message){
+  const porte=document.getElementById('porte');
+  document.getElementById('porteMsg').textContent=message||'';
+  porte.hidden=false;
+  const champ=document.getElementById('porteCode'); champ.value=''; champ.focus();
+  return new Promise(res=>{ resoudrePorte=res; });
+}
+document.getElementById('porteForm').addEventListener('submit', ev=>{
+  ev.preventDefault();
+  const c=document.getElementById('porteCode').value.trim();
+  if(!c) return;
+  poserCode(c);
+  document.getElementById('porte').hidden=true;
+  const r=resoudrePorte; resoudrePorte=null; if(r) r(c);
+});
+
+async function appelApi(url, opts){
+  opts=opts||{};
+  const envoyer=async ()=>{
+    const h=Object.assign({}, opts.headers||{});
+    const c=codeAcces(); if(c) h['x-admin-code']=c;
+    return fetch(url, Object.assign({}, opts, {headers:h}));
+  };
+  let r=await envoyer();
+  if(r.status===401){
+    oublierCode();
+    await ouvrirPorte('Code non reconnu. Réessayez.');
+    r=await envoyer();
+    if(r.status===401){ oublierCode(); }
+  }
+  return r;
+}
 function aujourdhui(){ return new Date().toISOString().slice(0,10); }
 
 async function chargerConfigPublique(){
   try{
-    const r=await fetch('/api/settings'); const s=(await r.json()).settings||{};
+    const r=await appelApi('/api/settings'); if(!r.ok) return; const s=(await r.json()).settings||{};
     if(s.nomEntreprise){ document.getElementById('titreApp').textContent=s.nomEntreprise+' — Gestion des tâches'; document.title=s.nomEntreprise; }
     if(s.heureRecap){ document.getElementById('sousTitre').textContent='Suivi quotidien · récap WhatsApp automatique à '+s.heureRecap; }
     responsables=(s.collaborateurs||[]).map(c=>c.nom).filter(Boolean);
@@ -501,7 +577,9 @@ function majResponsables(){
 async function chargerTaches(){
   setBadge('Synchronisation…');
   try{
-    const r=await fetch(API); if(!r.ok) throw 0;
+    const r=await appelApi(API);
+    if(r.status===401){ taches=[]; setBadge('Code requis', false); rendre(); return; }
+    if(!r.ok) throw 0;
     taches=(await r.json()).tasks||[];
     setBadge('✓ Synchronisé', true);
   }catch(e){
@@ -512,7 +590,10 @@ async function chargerTaches(){
 }
 async function sauverServeur(){
   localStorage.setItem('taches_vize', JSON.stringify(taches));
-  try{ await fetch(API,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({tasks:taches})}); setBadge('✓ Enregistré', true);}
+  try{
+    const r=await appelApi(API,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({tasks:taches})});
+    setBadge(r.ok?'✓ Enregistré':'Non enregistré — code requis', r.ok);
+  }
   catch(e){ setBadge('Enregistré en local', false);}
 }
 function setBadge(t,ok){const b=document.getElementById('syncBadge');b.textContent=t;b.style.background=ok===true?'rgba(255,255,255,.30)':(ok===false?'rgba(220,38,38,.5)':'rgba(255,255,255,.2)');}
@@ -716,8 +797,13 @@ function apercuRecap(){
   const moy=Math.round(base.reduce((s,x)=>s+(+x.progres||0),0)/base.length);
   txt+='\nAvancement moyen : '+moy+'%';
   alert(txt);}
-chargerConfigPublique();
-chargerTaches();
+/* La porte s'ouvre AVANT le premier appel : sans code en session, inutile
+   d'aller chercher un 401 pour l'apprendre. */
+(async ()=>{
+  if(!codeAcces()) await ouvrirPorte('');
+  await chargerConfigPublique();
+  await chargerTaches();
+})();
 
 // --- PWA : installation + service worker ---
 let promptInstall=null;
