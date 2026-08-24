@@ -24,12 +24,7 @@ module.exports = async (req, res) => {
          Une exception : quand AUCUN code n'est encore defini, on repond, sans
          quoi la page Configuration ne pourrait pas afficher l'etat initial et
          on ne pourrait jamais definir le premier code. */
-      if (s.adminCode) {
-        const fourni = req.headers['x-admin-code'] || (req.query && req.query.code) || '';
-        if (fourni !== s.adminCode) {
-          return res.status(401).json({ error: 'Code administrateur requis.', codeRequis: true });
-        }
-      }
+      if (await require('../lib/garde').refuse(req, res)) return;
       return res.status(200).json({ settings: masquer(s), storageReady: require('../lib/store').configured() });
     }
 
