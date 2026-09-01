@@ -588,13 +588,51 @@ async function chargerTaches(){
   }
   rendre();
 }
-async function sauverServeur(){
+/* Envoi d'UNE tâche au serveur — jamais de la liste entière.
+ *
+ * L'ancienne version envoyait tout le registre à chaque enregistrement. Deux
+ * personnes qui travaillaient en même temps s'effaçaient l'une l'autre en
+ * silence. Désormais le serveur reçoit la seule tâche touchée et l'insère
+ * lui-même : deux personnes sur des tâches différentes ne se gênent plus.
+ *
+ * Renvoie true si l'on peut refermer la fenêtre de saisie, false s'il faut la
+ * laisser ouverte pour que la personne reprenne sa modification.
+ */
+async function envoyerTache(charge){
   localStorage.setItem('taches_vize', JSON.stringify(taches));
   try{
-    const r=await appelApi(API,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({tasks:taches})});
-    setBadge(r.ok?'✓ Enregistré':'Non enregistré — code requis', r.ok);
+    const r=await appelApi(API,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(charge)});
+    let d={}; try{ d=await r.json(); }catch(e){}
+
+    if(r.status===409){
+      /* Page trop ancienne : elle enverrait la liste entière. */
+      if(d.rechargerPage){
+        setBadge('Page à recharger', false);
+        alert(d.error+'\n\nLa page va se recharger.');
+        location.reload();
+        return false;
+      }
+      /* Quelqu'un d'autre a modifié cette tâche pendant la saisie. On rétablit
+         la version du serveur SANS enregistrer la nôtre : mieux vaut refaire sa
+         modification que d'effacer celle d'un collègue sans le savoir. Le texte
+         saisi reste dans la fenêtre, qui ne se referme pas. */
+      if(Array.isArray(d.tasks)){ taches=d.tasks; localStorage.setItem('taches_vize', JSON.stringify(taches)); rendre(); }
+      setBadge('Conflit — version du serveur rétablie', false);
+      alert("Cette tâche vient d'être modifiée par quelqu'un d'autre.\n\n"
+        +"Votre saisie n'a pas été enregistrée, pour ne pas effacer la sienne. "
+        +"Le tableau affiche maintenant sa version : reprenez votre modification par-dessus, puis enregistrez à nouveau.");
+      return false;
+    }
+
+    if(!r.ok){ setBadge(d.error?'Non enregistré':'Non enregistré — code requis', false); return false; }
+
+    /* Le serveur renvoie le registre à jour : on repart du sien, ce qui fait
+       aussi apparaître les tâches ajoutées par les autres entre-temps. */
+    if(Array.isArray(d.tasks)){ taches=d.tasks; localStorage.setItem('taches_vize', JSON.stringify(taches)); rendre(); }
+    setBadge('✓ Enregistré', true);
+    return true;
   }
-  catch(e){ setBadge('Enregistré en local', false);}
+  catch(e){ setBadge('Enregistré en local', false); return true; }
 }
 function setBadge(t,ok){const b=document.getElementById('syncBadge');b.textContent=t;b.style.background=ok===true?'rgba(255,255,255,.30)':(ok===false?'rgba(220,38,38,.5)':'rgba(255,255,255,.2)');}
 /* Ces trois champs venaient de l'API et etaient inseres SANS echappement :
@@ -771,7 +809,7 @@ function editer(id){const t=taches.find(x=>x.id===id);if(!t)return;
   document.getElementById('f-etat').value=t.etat;document.getElementById('f-debut').value=t.debut||'';
   document.getElementById('f-echeance').value=t.echeance||'';document.getElementById('f-progres').value=t.progres||0;
   document.getElementById('f-notes').value=t.notes||'';document.getElementById('overlay').classList.add('show');}
-function enregistrer(){
+async function enregistrer(){
   const tache=document.getElementById('f-tache').value.trim();
   if(!tache){alert('Le nom de la tâche est obligatoire.');return;}
   const obj={id:document.getElementById('f-id').value||('t'+Date.now()),tache,
@@ -782,9 +820,24 @@ function enregistrer(){
     priorite:document.getElementById('f-priorite').value,etat:document.getElementById('f-etat').value,
     debut:document.getElementById('f-debut').value,echeance:document.getElementById('f-echeance').value,
     progres:+document.getElementById('f-progres').value||0,notes:document.getElementById('f-notes').value.trim()};
-  const i=taches.findIndex(x=>x.id===obj.id);if(i>=0)taches[i]=obj;else taches.push(obj);
-  fermerModal();rendre();sauverServeur();}
-function supprimer(id){if(!confirm('Supprimer cette tâche ?'))return;taches=taches.filter(x=>x.id!==id);rendre();sauverServeur();}
+  const i=taches.findIndex(x=>x.id===obj.id);
+  /* « base » : le numéro de version de la tâche qu'on a sous les yeux. Le
+     serveur le compare au sien pour repérer qu'un collègue est passé
+     entre-temps. Zéro pour une tâche nouvelle, ou créée avant la correction. */
+  const base=(i>=0 && Number(taches[i].rev))||0;
+  if(i>=0)taches[i]=Object.assign({},taches[i],obj);else taches.push(obj);
+  rendre();
+  /* La fenêtre ne se referme qu'une fois l'enregistrement accepté : en cas de
+     conflit, le texte saisi reste à l'écran au lieu d'être perdu. */
+  if(await envoyerTache({action:'enregistrer',tache:obj,base})) fermerModal();
+}
+async function supprimer(id){
+  if(!confirm('Supprimer cette tâche ?'))return;
+  const t=taches.find(x=>x.id===id);
+  const base=(t&&Number(t.rev))||0;
+  taches=taches.filter(x=>x.id!==id);rendre();
+  await envoyerTache({action:'supprimer',id,base});
+}
 function apercuRecap(){
   const t=aujourdhui();
   const filtre=document.getElementById('filtreResp').value;
