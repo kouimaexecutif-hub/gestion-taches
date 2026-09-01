@@ -78,6 +78,19 @@ C'est terminé : chaque matin à 07h00, le récap part automatiquement.
 
 ---
 
+## Travailler à plusieurs sur le même registre
+
+L'application est faite pour que chacun mette à jour l'avancement et les justificatifs de ses propres tâches, comme sur un classeur partagé. Deux points à connaître :
+
+- **Deux personnes sur des tâches différentes ne se gênent pas.** Enregistrer n'envoie que la tâche modifiée ; le serveur l'insère lui-même dans le registre. Jusqu'au 01/09/2026, c'est la liste entière qui était envoyée et qui remplaçait celle du serveur : la seconde personne à enregistrer effaçait le travail de la première, sans message.
+- **Deux personnes sur la même tâche sont départagées.** La seconde voit son enregistrement refusé, la version du serveur s'affiche, et sa fenêtre de saisie reste ouverte pour qu'elle reprenne sa modification par-dessus. Rien n'est écrasé en silence.
+
+> **Si un collaborateur voit « Cette page est une version ancienne de l'application »** : sa page est restée ouverte depuis avant cette correction. Elle se recharge d'elle-même ; il n'y a rien d'autre à faire.
+
+Il n'y a **pas de comptes individuels** : un seul code d'accès, partagé. Le registre dit ce qui a été fait, pas qui l'a fait.
+
+---
+
 ## Notes pour la commercialisation
 
 - **Aucune ligne de code à modifier** pour un nouveau client : il déploie le dossier, puis remplit la page Configuration.
