@@ -75,6 +75,14 @@
   .donut span{background:#fff;width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:var(--texte);}
   .fab{position:fixed;right:24px;bottom:24px;width:56px;height:56px;border-radius:50%;background:var(--vert);color:#fff;font-size:26px;line-height:1;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(31,122,77,.4);z-index:40;padding:0;}
   .fab:hover{background:#19613d;}
+  .astuce{background:#fff7e6;border:1px solid #f5d78e;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:14px;color:#7c5800;}
+  .carte-swipe{position:relative;border-radius:16px;overflow:hidden;}
+  .swipe-bg{position:absolute;inset:0;display:flex;align-items:center;padding:0 22px;font-weight:700;color:#fff;font-size:14px;}
+  .swipe-bg-left{background:var(--basse);justify-content:flex-start;}
+  .swipe-bg-right{background:var(--moyenne);justify-content:flex-end;}
+  .carte{position:relative;z-index:1;touch-action:pan-y;user-select:none;}
+  .carte.glissee{transition:none;}
+  .carte:not(.glissee){transition:transform .18s ease;}
   .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-start;justify-content:center;padding:30px 16px;overflow:auto;z-index:50;}
   .overlay.show{display:flex;}
   .modal{background:#fff;border-radius:14px;width:100%;max-width:620px;padding:24px;}
@@ -124,6 +132,8 @@
     <select class="filtre" id="filtreResp" onchange="rendre()"><option value="">Tous les responsables</option></select>
     <button class="btn-gris" id="btnVue" onclick="basculerVue()">📋 Vue tableau</button>
   </div>
+
+  <div class="astuce" id="astuceSwipe" style="display:none;">💡 Astuce : sur une carte, glissez vers la droite ✅ pour la marquer Terminé, ou vers la gauche ⋯ pour changer rapidement le responsable ou la date d'échéance. <button onclick="masquerAstuce()" class="btn-gris" style="padding:2px 8px;font-size:11px;margin-left:8px;">Compris</button></div>
 
   <div id="cartesGrid" class="cartes-grid" style="display:none;"></div>
 
@@ -212,6 +222,27 @@
     <div class="modal-actions">
       <button class="btn-gris" onclick="fermerModal()">Annuler</button>
       <button class="btn-vert" onclick="enregistrer()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="rapideOverlay">
+  <div class="modal" style="max-width:380px;">
+    <h2>Action rapide</h2>
+    <p class="aide" id="rapideNomTache"></p>
+    <input type="hidden" id="r-id">
+    <input type="hidden" id="r-base">
+    <div class="champ">
+      <label>Nouveau responsable</label>
+      <input id="r-responsable" list="listeResponsables" placeholder="Laisser vide pour ne pas changer">
+    </div>
+    <div class="champ">
+      <label>Nouvelle date d'échéance</label>
+      <input type="date" id="r-echeance">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-gris" onclick="fermerMenuRapide()">Annuler</button>
+      <button class="btn-vert" onclick="validerMenuRapide()">Valider</button>
     </div>
   </div>
 </div>
@@ -330,6 +361,8 @@ function rendre(){
   const liste=filtre?taches.filter(t=>(t.responsable||'')===filtre):taches;
   document.getElementById('vide').style.display=liste.length?'none':'block';
   majBoutonVue();
+  const astuce=document.getElementById('astuceSwipe');
+  if(astuce){ let vue2;try{vue2=localStorage.getItem('astuce_swipe_vue');}catch(e){vue2=null;} astuce.style.display=(vueActuelle==='cartes' && !vue2)?'block':'none'; }
   const grille=document.getElementById('cartesGrid'), tableWrap=document.getElementById('tableWrap');
   if(vueActuelle==='cartes'){
     grille.style.display='grid'; tableWrap.style.display='none';
@@ -375,6 +408,8 @@ function rendreTableau(liste){
 function rendreCartes(liste){
   const grille=document.getElementById('cartesGrid'); grille.innerHTML='';
   liste.forEach(t=>{
+    const swipe=document.createElement('div');
+    swipe.className='carte-swipe';
     const carte=document.createElement('div');
     carte.className='carte';
     const details=[
@@ -402,13 +437,113 @@ function rendreCartes(liste){
         <button class="btn-gris" onclick="editer('${t.id}')">✏️ Modifier</button>
         <button class="btn-gris" onclick="supprimer('${t.id}')">🗑 Supprimer</button>
       </div>`;
-    grille.appendChild(carte);
+    swipe.innerHTML=`<div class="swipe-bg swipe-bg-left">✅ Terminé</div><div class="swipe-bg swipe-bg-right">⋯ Options</div>`;
+    swipe.appendChild(carte);
+    grille.appendChild(swipe);
+    activerGeste(carte, t.id);
   });
 }
 function toggleDetails(btn){
   const det=btn.nextElementSibling; if(!det) return;
   det.hidden=!det.hidden;
   btn.textContent = det.hidden ? 'Détails ▾' : 'Détails ▴';
+}
+function masquerAstuce(){
+  const a=document.getElementById('astuceSwipe'); if(a) a.style.display='none';
+  try{ localStorage.setItem('astuce_swipe_vue','1'); }catch(e){}
+}
+// --- Geste de balayage sur une carte (souris et tactile via Pointer Events) ---
+function activerGeste(carte, id){
+  const seuil=80;
+  let debutX=0, dx=0, actif=false;
+  function bouger(e){
+    if(!actif) return;
+    dx=e.clientX-debutX;
+    carte.style.transform='translateX('+dx+'px)';
+  }
+  function relacher(){
+    if(!actif) return;
+    actif=false;
+    document.removeEventListener('pointermove', bouger);
+    document.removeEventListener('pointerup', relacher);
+    carte.classList.remove('glissee');
+    carte.style.transform='';
+    if(dx>seuil) marquerTermine(id);
+    else if(dx<-seuil) ouvrirMenuRapide(id);
+    dx=0;
+  }
+  carte.addEventListener('pointerdown', e=>{
+    if(e.target.closest('button')) return;
+    actif=true; dx=0; debutX=e.clientX;
+    carte.classList.add('glissee');
+    document.addEventListener('pointermove', bouger);
+    document.addEventListener('pointerup', relacher);
+  });
+}
+async function marquerTermine(id){
+  const t=taches.find(x=>x.id===id); if(!t) return;
+  const base=t.rev||0;
+  const obj=Object.assign({}, t, {etat:'Terminé', progres:100});
+  try{
+    const r=await appelApi(API,{method:'POST',body:JSON.stringify({action:'enregistrer',tache:obj,base})});
+    const data=await r.json().catch(()=>({}));
+    if(r.ok){
+      taches=data.tasks||taches; localStorage.setItem('taches_vize',JSON.stringify(taches));
+      recalcResponsables(); rendre(); setBadge('✓ Enregistré', true);
+    } else if(data.conflit){
+      taches=data.tasks||taches; recalcResponsables(); rendre();
+      alert('Cette tâche a été modifiée entre-temps par quelqu\'un d\'autre : la liste a été mise à jour, réessayez si besoin.');
+    } else {
+      alert(data.error||'Impossible de marquer cette tâche comme terminée.'); rendre();
+    }
+  }catch(e){
+    const i=taches.findIndex(x=>x.id===id); if(i>=0) taches[i]=obj;
+    localStorage.setItem('taches_vize',JSON.stringify(taches));
+    rendre(); setBadge('Enregistré en local (hors-ligne)', false);
+  }
+}
+function ouvrirMenuRapide(id){
+  const t=taches.find(x=>x.id===id); if(!t){ rendre(); return; }
+  document.getElementById('r-id').value=t.id;
+  document.getElementById('r-base').value=t.rev||0;
+  document.getElementById('rapideNomTache').textContent=t.tache;
+  document.getElementById('r-responsable').value='';
+  document.getElementById('r-echeance').value=t.echeance||'';
+  majResponsables();
+  document.getElementById('rapideOverlay').classList.add('show');
+}
+function fermerMenuRapide(){
+  document.getElementById('rapideOverlay').classList.remove('show');
+  rendre();
+}
+async function validerMenuRapide(){
+  const id=document.getElementById('r-id').value;
+  const t=taches.find(x=>x.id===id); if(!t){ fermerMenuRapide(); return; }
+  const base=Number(document.getElementById('r-base').value)||0;
+  const nvResp=document.getElementById('r-responsable').value.trim();
+  const nvEch=document.getElementById('r-echeance').value;
+  const obj=Object.assign({}, t, { responsable: nvResp?nvResp:t.responsable, echeance: nvEch });
+  try{
+    const r=await appelApi(API,{method:'POST',body:JSON.stringify({action:'enregistrer',tache:obj,base})});
+    const data=await r.json().catch(()=>({}));
+    if(r.ok){
+      taches=data.tasks||taches; localStorage.setItem('taches_vize',JSON.stringify(taches));
+      document.getElementById('rapideOverlay').classList.remove('show');
+      recalcResponsables(); rendre(); setBadge('✓ Enregistré', true);
+    } else if(data.conflit){
+      taches=data.tasks||taches; recalcResponsables();
+      document.getElementById('rapideOverlay').classList.remove('show');
+      alert('Cette tâche a été modifiée entre-temps par quelqu\'un d\'autre. Réessayez.');
+      rendre();
+    } else {
+      alert(data.error||'Enregistrement impossible.');
+    }
+  }catch(e){
+    const i=taches.findIndex(x=>x.id===id); if(i>=0) taches[i]=obj;
+    localStorage.setItem('taches_vize',JSON.stringify(taches));
+    document.getElementById('rapideOverlay').classList.remove('show');
+    rendre(); setBadge('Enregistré en local (hors-ligne)', false);
+  }
 }
 function rendreStats(liste){
   const total=liste.length, termine=liste.filter(t=>t.etat==='Terminé').length,
