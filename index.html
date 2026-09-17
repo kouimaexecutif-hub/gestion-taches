@@ -36,7 +36,7 @@
   .stat .n{font-size:24px;font-weight:700;}
   .stat .l{font-size:12px;color:var(--doux);text-transform:uppercase;letter-spacing:.04em;}
   .tablecard{background:#fff;border:1px solid var(--bordure);border-radius:12px;overflow:auto;box-shadow:0 1px 3px rgba(16,24,32,.06);}
-  table{border-collapse:collapse;width:100%;min-width:2190px;table-layout:fixed;}
+  table{border-collapse:collapse;width:100%;min-width:2580px;table-layout:fixed;}
   th,td{padding:14px 16px;text-align:left;font-size:13.5px;line-height:1.6;border-bottom:1px solid var(--bordure);vertical-align:top;overflow-wrap:break-word;}
   th{background:var(--vert-clair);color:#14532d;font-weight:700;font-size:12.5px;text-transform:uppercase;letter-spacing:.03em;position:sticky;top:0;border-bottom:2px solid var(--vert);white-space:normal;}
   th.ta-center{text-align:center;}
@@ -150,7 +150,9 @@
         <col style="width:115px">
         <col style="width:110px">
         <col style="width:110px">
+        <col style="width:170px">
         <col style="width:260px">
+        <col style="width:220px">
         <col style="width:180px">
       </colgroup>
       <thead>
@@ -165,6 +167,8 @@
           <th class="ta-center">Date d'échéance</th>
           <th class="ta-center">État</th>
           <th class="ta-center">% terminé</th>
+          <th class="ta-center">Statut de l'action</th>
+          <th>Résultat</th>
           <th>Notes</th>
           <th class="ta-center">Actions</th>
         </tr>
@@ -217,6 +221,15 @@
       <div class="champ"><label>Date de début</label><input type="date" id="f-debut"></div>
       <div class="champ"><label>Date d'échéance</label><input type="date" id="f-echeance"></div>
       <div class="champ"><label>% terminé</label><input type="number" id="f-progres" min="0" max="100" step="5" value="0"></div>
+      <div class="champ">
+        <label>Date de réalisation</label>
+        <input type="date" id="f-realisation">
+      </div>
+    </div>
+    <div class="champ">
+      <label>Résultat (ce qui a été fait)</label>
+      <textarea id="f-resultat" placeholder="Le livrable ou le résultat concret obtenu"></textarea>
+      <div class="note">Renseignez la « Date de réalisation » ci-dessus quand ce résultat est acquis : le « Statut de l'action » (à jour / en retard) se calcule automatiquement à partir de cette date et de la date d'échéance.</div>
     </div>
     <div class="champ"><label>Notes</label><textarea id="f-notes" placeholder="Remarques, validations…"></textarea></div>
     <div class="modal-actions">
@@ -355,6 +368,24 @@ function classePriorite(p){return p==='Haute'?'p-haute':p==='Basse'?'p-basse':'p
 function classeEtat(e){return e==='En cours'?'e-encours':e==='Terminé'?'e-termine':e==='Bloqué'?'e-bloque':'e-afaire';}
 function frDate(d){if(!d)return'—';const[y,m,j]=d.split('-');return `${j}/${m}/${y}`;}
 function esc(s){return (s||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));}
+function joursEntre(a,b){ const da=new Date(a+'T00:00:00'), db=new Date(b+'T00:00:00'); return Math.max(1, Math.round((db-da)/86400000)); }
+// Statut de l'action : calculé automatiquement, jamais saisi à la main.
+// - Pas de date de réalisation, échéance pas encore dépassée : "En cours".
+// - Pas de date de réalisation, échéance dépassée : "En cours – retard de N j" (N = jours au-delà de l'échéance).
+// - Date de réalisation renseignée : "Réalisée en avance" / "Réalisée à temps" / "Réalisée en retard" selon sa position par rapport à l'échéance.
+function calculerStatutAction(t){
+  const auj=aujourdhui(), ech=t.echeance||'', real=t.dateRealisation||'';
+  if(real){
+    if(!ech) return {texte:'Réalisée', classe:'e-termine'};
+    if(real<ech) return {texte:'Réalisée en avance', classe:'e-termine'};
+    if(real>ech) return {texte:'Réalisée en retard', classe:'p-moyenne'};
+    return {texte:'Réalisée à temps', classe:'e-termine'};
+  }
+  if(ech && auj>ech){
+    return {texte:'En cours – retard de '+joursEntre(ech,auj)+' j', classe:'e-bloque'};
+  }
+  return {texte:'En cours', classe:'e-encours'};
+}
 
 function rendre(){
   const filtre=document.getElementById('filtreResp')?document.getElementById('filtreResp').value:'';
@@ -385,6 +416,7 @@ function majBoutonVue(){
 function rendreTableau(liste){
   const tb=document.getElementById('tbody');tb.innerHTML='';
   liste.forEach(t=>{
+    const statut=calculerStatutAction(t);
     const tr=document.createElement('tr');
     tr.innerHTML=`
       <td class="va-mid"><strong>${esc(t.tache)}</strong></td>
@@ -397,6 +429,8 @@ function rendreTableau(liste){
       <td class="ta-center va-mid">${frDate(t.echeance)}</td>
       <td class="ta-center va-mid"><span class="pill ${classeEtat(t.etat)}">${t.etat}</span></td>
       <td class="ta-center va-mid"><div class="prog"><div style="width:${t.progres||0}%"></div></div><small>${t.progres||0}%</small></td>
+      <td class="ta-center va-mid"><span class="pill ${statut.classe}">${statut.texte}</span></td>
+      <td class="ta-justify">${esc(t.resultat)||'—'}</td>
       <td class="ta-justify">${esc(t.notes)||'—'}</td>
       <td class="cell-actions ta-center va-mid">
         <button class="btn-gris" onclick="editer('${t.id}')">Modifier</button>
@@ -412,10 +446,12 @@ function rendreCartes(liste){
     swipe.className='carte-swipe';
     const carte=document.createElement('div');
     carte.className='carte';
+    const statut=calculerStatutAction(t);
     const details=[
       t.description?`<p><b>Description :</b> ${esc(t.description)}</p>`:'',
       t.comment?`<p><b>Comment réaliser :</b> ${esc(t.comment)}</p>`:'',
       t.ressources?`<p><b>Ressources :</b> ${esc(t.ressources)}</p>`:'',
+      t.resultat?`<p><b>Résultat :</b> ${esc(t.resultat)}</p>`:'',
       t.notes?`<p><b>Notes :</b> ${esc(t.notes)}</p>`:''
     ].join('') || '<p>Aucun détail renseigné.</p>';
     carte.innerHTML=`
@@ -424,6 +460,7 @@ function rendreCartes(liste){
         <div class="carte-pills">
           <span class="pill ${classeEtat(t.etat)}">${t.etat}</span>
           <span class="pill ${classePriorite(t.priorite)}">${t.priorite}</span>
+          <span class="pill ${statut.classe}">${statut.texte}</span>
         </div>
       </div>
       <div class="carte-meta">
@@ -560,10 +597,11 @@ function rendreStats(liste){
     <div class="stat"><div class="n">${bloque}</div><div class="l">Bloquées</div></div>`;
 }
 function ouvrirModal(){document.getElementById('modalTitre').textContent='Nouvelle tâche';
-  ['id','base','tache','description','comment','ressources','notes'].forEach(k=>document.getElementById('f-'+k).value='');
+  ['id','base','tache','description','comment','ressources','resultat','notes'].forEach(k=>document.getElementById('f-'+k).value='');
   majResponsables(); document.getElementById('f-responsable').value='';
   document.getElementById('f-priorite').value='Moyenne';document.getElementById('f-etat').value='À faire';
   document.getElementById('f-debut').value=aujourdhui();document.getElementById('f-echeance').value='';
+  document.getElementById('f-realisation').value='';
   document.getElementById('f-progres').value=0;document.getElementById('overlay').classList.add('show');}
 function fermerModal(){document.getElementById('overlay').classList.remove('show');}
 function autoProgres(){const e=document.getElementById('f-etat').value,p=document.getElementById('f-progres');
@@ -578,6 +616,8 @@ function editer(id){const t=taches.find(x=>x.id===id);if(!t)return;
   document.getElementById('f-priorite').value=t.priorite;
   document.getElementById('f-etat').value=t.etat;document.getElementById('f-debut').value=t.debut||'';
   document.getElementById('f-echeance').value=t.echeance||'';document.getElementById('f-progres').value=t.progres||0;
+  document.getElementById('f-realisation').value=t.dateRealisation||'';
+  document.getElementById('f-resultat').value=t.resultat||'';
   document.getElementById('f-notes').value=t.notes||'';document.getElementById('overlay').classList.add('show');}
 async function enregistrer(){
   const tache=document.getElementById('f-tache').value.trim();
@@ -591,7 +631,10 @@ async function enregistrer(){
     responsable:document.getElementById('f-responsable').value,
     priorite:document.getElementById('f-priorite').value,etat:document.getElementById('f-etat').value,
     debut:document.getElementById('f-debut').value,echeance:document.getElementById('f-echeance').value,
-    progres:+document.getElementById('f-progres').value||0,notes:document.getElementById('f-notes').value.trim()};
+    progres:+document.getElementById('f-progres').value||0,
+    dateRealisation:document.getElementById('f-realisation').value,
+    resultat:document.getElementById('f-resultat').value.trim(),
+    notes:document.getElementById('f-notes').value.trim()};
   const btn=document.querySelector('#overlay .modal-actions .btn-vert');
   if(btn){btn.disabled=true;btn.dataset.txt=btn.textContent;btn.textContent='Enregistrement…';}
   setBadge('Enregistrement…');
