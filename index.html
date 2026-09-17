@@ -58,6 +58,23 @@
   .prog > div{height:100%;background:var(--vert);}
   .cell-actions button{padding:5px 9px;font-size:12px;margin-right:4px;white-space:nowrap;}
   .vide{padding:40px;text-align:center;color:var(--doux);}
+  .cartes-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-bottom:16px;}
+  .carte{background:#fff;border:1px solid var(--bordure);border-radius:16px;padding:16px 18px;box-shadow:0 1px 3px rgba(16,24,32,.05);display:flex;flex-direction:column;gap:10px;}
+  .carte-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .carte-head strong{font-size:14.5px;line-height:1.4;}
+  .carte-pills{display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0;}
+  .carte-meta{font-size:12.5px;color:var(--doux);display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+  .carte-details{font-size:13px;line-height:1.55;color:var(--texte);border-top:1px dashed var(--bordure);padding-top:10px;margin-top:2px;}
+  .carte-details p{margin:0 0 8px;}
+  .carte-details p:last-child{margin-bottom:0;}
+  .carte-toggle{background:none;border:none;padding:0;font-size:12.5px;font-weight:600;color:var(--vert);cursor:pointer;text-align:left;}
+  .carte-actions{display:flex;gap:8px;margin-top:2px;}
+  .carte-actions button{padding:6px 12px;font-size:12.5px;}
+  .donut-bloc{background:#fff;border:1px solid var(--bordure);border-radius:16px;padding:12px 20px;display:flex;align-items:center;gap:14px;}
+  .donut{--pct:0;width:64px;height:64px;border-radius:50%;flex-shrink:0;background:conic-gradient(var(--vert) calc(var(--pct)*1%), #eceff1 0);display:flex;align-items:center;justify-content:center;}
+  .donut span{background:#fff;width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:var(--texte);}
+  .fab{position:fixed;right:24px;bottom:24px;width:56px;height:56px;border-radius:50%;background:var(--vert);color:#fff;font-size:26px;line-height:1;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 18px rgba(31,122,77,.4);z-index:40;padding:0;}
+  .fab:hover{background:#19613d;}
   .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:flex-start;justify-content:center;padding:30px 16px;overflow:auto;z-index:50;}
   .overlay.show{display:flex;}
   .modal{background:#fff;border-radius:14px;width:100%;max-width:620px;padding:24px;}
@@ -79,6 +96,7 @@
     th,td{padding:8px 9px;font-size:12.5px;}
     .stat{min-width:calc(50% - 6px);flex:1;}
     .modal{padding:18px;}
+    .cartes-grid{grid-template-columns:1fr;}
   }
 </style>
 </head>
@@ -104,9 +122,12 @@
     <button class="btn-gris" onclick="chargerTaches()">↻ Rafraîchir</button>
     <button class="btn-gris" onclick="apercuRecap()">👁 Aperçu du récap</button>
     <select class="filtre" id="filtreResp" onchange="rendre()"><option value="">Tous les responsables</option></select>
+    <button class="btn-gris" id="btnVue" onclick="basculerVue()">📋 Vue tableau</button>
   </div>
 
-  <div class="tablecard">
+  <div id="cartesGrid" class="cartes-grid" style="display:none;"></div>
+
+  <div class="tablecard" id="tableWrap">
     <table>
       <colgroup>
         <col style="width:220px">
@@ -140,9 +161,11 @@
       </thead>
       <tbody id="tbody"></tbody>
     </table>
-    <div class="vide" id="vide" style="display:none;">Aucune tâche pour le moment. Cliquez sur « + Nouvelle tâche ».</div>
   </div>
+  <div class="vide" id="vide" style="display:none;">Aucune tâche pour le moment. Cliquez sur « + Nouvelle tâche ».</div>
 </div>
+
+<button class="fab" onclick="ouvrirModal()" title="Nouvelle tâche" aria-label="Nouvelle tâche">+</button>
 
 <div class="overlay" id="overlay">
   <div class="modal">
@@ -214,6 +237,7 @@
 let taches = [];
 let collaborateursNoms = [];
 let responsables = [];
+let vueActuelle = (function(){ try{ return localStorage.getItem('vue_taches')||'cartes'; }catch(e){ return 'cartes'; } })();
 const API='/api/tasks';
 function aujourdhui(){ return new Date().toISOString().slice(0,10); }
 
@@ -304,8 +328,29 @@ function esc(s){return (s||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'
 function rendre(){
   const filtre=document.getElementById('filtreResp')?document.getElementById('filtreResp').value:'';
   const liste=filtre?taches.filter(t=>(t.responsable||'')===filtre):taches;
-  const tb=document.getElementById('tbody');tb.innerHTML='';
   document.getElementById('vide').style.display=liste.length?'none':'block';
+  majBoutonVue();
+  const grille=document.getElementById('cartesGrid'), tableWrap=document.getElementById('tableWrap');
+  if(vueActuelle==='cartes'){
+    grille.style.display='grid'; tableWrap.style.display='none';
+    rendreCartes(liste);
+  } else {
+    grille.style.display='none'; tableWrap.style.display='block';
+    rendreTableau(liste);
+  }
+  rendreStats(liste);
+}
+function basculerVue(){
+  vueActuelle = vueActuelle==='cartes' ? 'tableau' : 'cartes';
+  try{ localStorage.setItem('vue_taches', vueActuelle); }catch(e){}
+  rendre();
+}
+function majBoutonVue(){
+  const b=document.getElementById('btnVue');
+  if(b) b.textContent = vueActuelle==='cartes' ? '📋 Vue tableau' : '🗂 Vue cartes';
+}
+function rendreTableau(liste){
+  const tb=document.getElementById('tbody');tb.innerHTML='';
   liste.forEach(t=>{
     const tr=document.createElement('tr');
     tr.innerHTML=`
@@ -326,18 +371,58 @@ function rendre(){
       </td>`;
     tb.appendChild(tr);
   });
-  rendreStats(liste);
+}
+function rendreCartes(liste){
+  const grille=document.getElementById('cartesGrid'); grille.innerHTML='';
+  liste.forEach(t=>{
+    const carte=document.createElement('div');
+    carte.className='carte';
+    const details=[
+      t.description?`<p><b>Description :</b> ${esc(t.description)}</p>`:'',
+      t.comment?`<p><b>Comment réaliser :</b> ${esc(t.comment)}</p>`:'',
+      t.ressources?`<p><b>Ressources :</b> ${esc(t.ressources)}</p>`:'',
+      t.notes?`<p><b>Notes :</b> ${esc(t.notes)}</p>`:''
+    ].join('') || '<p>Aucun détail renseigné.</p>';
+    carte.innerHTML=`
+      <div class="carte-head">
+        <strong>${esc(t.tache)}</strong>
+        <div class="carte-pills">
+          <span class="pill ${classeEtat(t.etat)}">${t.etat}</span>
+          <span class="pill ${classePriorite(t.priorite)}">${t.priorite}</span>
+        </div>
+      </div>
+      <div class="carte-meta">
+        ${t.responsable?`<span class="resp">${esc(t.responsable)}</span>`:''}
+        <span>${frDate(t.debut)} → ${frDate(t.echeance)}</span>
+      </div>
+      <div class="prog"><div style="width:${t.progres||0}%"></div></div>
+      <button class="carte-toggle" onclick="toggleDetails(this)">Détails ▾</button>
+      <div class="carte-details" hidden>${details}</div>
+      <div class="carte-actions">
+        <button class="btn-gris" onclick="editer('${t.id}')">✏️ Modifier</button>
+        <button class="btn-gris" onclick="supprimer('${t.id}')">🗑 Supprimer</button>
+      </div>`;
+    grille.appendChild(carte);
+  });
+}
+function toggleDetails(btn){
+  const det=btn.nextElementSibling; if(!det) return;
+  det.hidden=!det.hidden;
+  btn.textContent = det.hidden ? 'Détails ▾' : 'Détails ▴';
 }
 function rendreStats(liste){
   const total=liste.length, termine=liste.filter(t=>t.etat==='Terminé').length,
     cours=liste.filter(t=>t.etat==='En cours').length, bloque=liste.filter(t=>t.etat==='Bloqué').length,
     moy=total?Math.round(liste.reduce((s,t)=>s+(+t.progres||0),0)/total):0;
   document.getElementById('stats').innerHTML=`
+    <div class="donut-bloc">
+      <div class="donut" style="--pct:${moy}"><span>${moy}%</span></div>
+      <div><div style="font-weight:700;font-size:15px;">Avancement moyen</div><div style="font-size:12.5px;color:var(--doux);">de l'équipe</div></div>
+    </div>
     <div class="stat"><div class="n">${total}</div><div class="l">Tâches</div></div>
     <div class="stat"><div class="n">${cours}</div><div class="l">En cours</div></div>
     <div class="stat"><div class="n">${termine}</div><div class="l">Terminées</div></div>
-    <div class="stat"><div class="n">${bloque}</div><div class="l">Bloquées</div></div>
-    <div class="stat"><div class="n">${moy}%</div><div class="l">Avancement moyen</div></div>`;
+    <div class="stat"><div class="n">${bloque}</div><div class="l">Bloquées</div></div>`;
 }
 function ouvrirModal(){document.getElementById('modalTitre').textContent='Nouvelle tâche';
   ['id','base','tache','description','comment','ressources','notes'].forEach(k=>document.getElementById('f-'+k).value='');
