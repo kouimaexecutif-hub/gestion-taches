@@ -98,8 +98,8 @@
     </div>
     <div class="champ">
       <label>Heure du récap quotidien</label>
-      <input id="heureRecap" value="07:00" placeholder="07:00">
-      <div class="note">Affichage indicatif. L'envoi automatique est planifié à 07h00 (heure du Gabon).</div>
+      <input id="heureRecap" value="07:00" readonly>
+      <div class="note">Non modifiable ici : l'envoi automatique part chaque matin entre 7 h et 8 h (heure du Gabon), quelle que soit la valeur de ce champ.</div>
     </div>
   </div>
 
@@ -139,9 +139,10 @@
   </div>
 
   <div class="carte">
-    <button class="btn-vert" onclick="enregistrer()">💾 Enregistrer la configuration</button>
-    <button class="btn-gris" onclick="envoyerTest()">📲 Envoyer un test à tous</button>
+    <button class="btn-vert" id="btnEnregistrer" onclick="enregistrer()" disabled>💾 Enregistrer la configuration</button>
+    <button class="btn-gris" id="btnTest" onclick="envoyerTest()" disabled>📲 Envoyer un test à tous</button>
     <div class="msg" id="msg"></div>
+    <div class="note" id="dernierEnvoi" style="margin-top:10px;white-space:pre-line;"></div>
   </div>
 
 </div>
@@ -192,15 +193,20 @@ function majMethode(){
   document.querySelectorAll('.cle-cell').forEach(el=>el.style.display = m==='twilio'?'none':'block');
 }
 
+/* Échappement complet pour une valeur placée dans un attribut. */
+function attr(s){return String(s==null?'':s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
 function ligneCollab(c={}){
   const div=document.createElement('div');
   div.className='collabrow';
+  /* Identifiant stable du destinataire : corriger son nom ne lui fait plus
+     perdre sa clé CallMeBot. */
+  div.dataset.id=c.id||'';
   div.innerHTML=`
     <div class="ligne">
       <div><label style="font-size:12px;font-weight:600;">Nom</label>
-        <input type="text" class="c-nom" value="${(c.nom||'').replace(/"/g,'&quot;')}" placeholder="Ex : Michael"></div>
+        <input type="text" class="c-nom" value="${attr(c.nom)}" placeholder="Ex : Michael"></div>
       <div><label style="font-size:12px;font-weight:600;">Numéro WhatsApp</label>
-        <input type="text" class="c-numero" value="${(c.numero||'').replace(/"/g,'&quot;')}" placeholder="+241..."></div>
+        <input type="text" class="c-numero" value="${attr(c.numero)}" placeholder="+241..."></div>
     </div>
     <div class="cle-cell" style="margin-bottom:8px;">
       <label style="font-size:12px;font-weight:600;">Clé API CallMeBot</label>
@@ -215,6 +221,7 @@ function ligneCollab(c={}){
 function ajouterCollab(c){ document.getElementById('colList').appendChild(ligneCollab(c||{})); majMethode(); }
 function lireCollabs(){
   return [...document.querySelectorAll('.collabrow')].map(r=>({
+    id:r.dataset.id||'',
     nom:r.querySelector('.c-nom').value.trim(),
     numero:r.querySelector('.c-numero').value.trim(),
     cle:r.querySelector('.c-cle').value.trim(),
@@ -222,9 +229,27 @@ function lireCollabs(){
   })).filter(c=>c.nom||c.numero);
 }
 
+/* Les boutons restent grisés tant que la configuration n'est pas chargée :
+   enregistrer une page restée vide effaçait les destinataires. */
+function boutons(actifs){ ['btnEnregistrer','btnTest'].forEach(id=>{ document.getElementById(id).disabled=!actifs; }); }
+function afficherDernierEnvoi(d){
+  const el=document.getElementById('dernierEnvoi');
+  if(!d){ el.textContent='Dernier envoi automatique : aucun enregistré.'; return; }
+  const quand=d.quand?new Date(d.quand).toLocaleString('fr-FR',{timeZone:'Africa/Libreville'}):'?';
+  if(d.erreur){ el.textContent='Dernier envoi automatique ('+quand+') : ÉCHEC — '+d.erreur; return; }
+  const res=d.results||[];
+  const ko=res.filter(x=>x.ok===false).map(x=>(x.nom||'?')+' ('+x.error+')');
+  const ok=res.filter(x=>x.ok).map(x=>x.nom||'?');
+  el.textContent='Dernier envoi automatique ('+quand+') : '+(ok.length?'parti vers '+ok.join(', '):'aucun message parti')
+    +(ko.length?'\nÉchecs : '+ko.join(' ; '):'')
+    +(d.secretCron===false?'\nÀ faire : définir CRON_SECRET sur le projet Vercel (voir le guide).':'');
+}
 async function charger(){
+  boutons(false);
   try{
-    const r=await appelApi('/api/settings'); if(!r.ok) return; const j=await r.json();
+    const r=await appelApi('/api/settings');
+    if(!r.ok){ setMsg('✗ Configuration non chargée ('+(r.status===401?'code refusé':'erreur '+r.status)+'). Rechargez la page avant de modifier quoi que ce soit.', true); return; }
+    const j=await r.json();
     const s=j.settings||{}; storageReady=j.storageReady;
     document.getElementById('nomEntreprise').value=s.nomEntreprise||'';
     document.getElementById('heureRecap').value=s.heureRecap||'07:00';
@@ -241,8 +266,10 @@ async function charger(){
     document.getElementById('etatEnvoi').textContent = cols.length? (cols.length+' destinataire'+(cols.length>1?'s':'')) : 'à configurer';
     document.getElementById('etatEnvoi').className = 'etat '+(cols.length?'on':'off');
     majMethode();
+    afficherDernierEnvoi(j.dernierEnvoi);
+    boutons(true);
     if(!storageReady){ setMsg('⚠️ Le stockage cloud n\'est pas branché : les réglages risquent de ne pas être conservés.', true); }
-  }catch(e){ setMsg('Impossible de charger la configuration.', true); }
+  }catch(e){ setMsg('✗ Impossible de charger la configuration. Rechargez la page avant de modifier quoi que ce soit.', true); }
 }
 
 function payload(){
@@ -257,14 +284,22 @@ function payload(){
   return {p, code};
 }
 
-async function enregistrer(){
+async function enregistrer(confirmerVide){
   const {p, code}=payload();
+  if(confirmerVide) p.confirmerAucunDestinataire=true;
   if(!codeDejaDefini && !code){ setMsg('Choisissez d\'abord un code administrateur.', true); return; }
   setMsg('Enregistrement…');
   try{
-    const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json','x-admin-code':code},body:JSON.stringify(p)});
-    const j=await r.json();
+    /* Sans code en base, le code saisi est le NOUVEAU code : on s'identifie
+       avec celui de la porte (code de secours ADMIN_CODE, s'il existe). */
+    const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json','x-admin-code':codeDejaDefini?code:codeAcces()},body:JSON.stringify(p)});
+    const j=await r.json().catch(()=>({}));
+    if(r.status===409 && !confirmerVide && !p.collaborateurs.length){
+      if(confirm('Aucun destinataire ne recevra plus le récap. Confirmer la suppression de toute la liste ?')) return enregistrer(true);
+      setMsg('Rien n\'a été enregistré.', true); return;
+    }
     if(!r.ok){ setMsg('✗ '+(j.error||'Erreur'), true); return; }
+    if(code) poserCode(code);
     setMsg('✓ Configuration enregistrée.');
     codeDejaDefini=true; document.getElementById('twilioToken').value='';
     charger();
@@ -272,16 +307,18 @@ async function enregistrer(){
 }
 
 async function envoyerTest(){
-  const code=val('adminCode');
+  const code=val('adminCode')||codeAcces();
   setMsg('Envoi des tests en cours…');
   try{
     const r=await fetch('/api/test',{method:'POST',headers:{'Content-Type':'application/json','x-admin-code':code},body:JSON.stringify({adminCode:code})});
-    const j=await r.json();
+    const j=await r.json().catch(()=>({}));
     if(!r.ok){ setMsg('✗ '+(j.error||'Échec de l\'envoi'), true); return; }
     const res=(j.results||[]);
-    const ok=res.filter(x=>x.ok).map(x=>x.nom||'?');
+    /* « Parti vers » et non « reçu par » : Twilio accepte le message avant de
+       savoir s'il sera remis. */
+    const ok=res.filter(x=>x.ok).map(x=>(x.nom||'?')+(x.status&&/non confirmée/.test(x.status)?' (remise non confirmée)':''));
     const ko=res.filter(x=>x.ok===false).map(x=>(x.nom||'?')+' ('+x.error+')');
-    let m='✓ Tests envoyés. Reçu par : '+(ok.join(', ')||'—');
+    let m='✓ Tests partis vers : '+(ok.join(', ')||'—');
     if(ko.length) m+='\n✗ Échecs : '+ko.join(' ; ');
     setMsg(m, ko.length>0);
   }catch(e){ setMsg('✗ Erreur réseau', true); }

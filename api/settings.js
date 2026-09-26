@@ -1,4 +1,5 @@
-const { getJSON, setJSON, readBody } = require('../lib/store');
+const { getJSON, readBody, avecVerrou } = require('../lib/store');
+const { refuse } = require('../lib/garde');
 
 // Champs secrets jamais renvoyés au navigateur
 const SECRETS = ['twilioToken', 'adminCode', 'callmebotApikey'];
@@ -7,7 +8,7 @@ function masquer(s) {
   const pub = { ...s };
   for (const k of SECRETS) { pub[k + 'Set'] = !!s[k]; delete pub[k]; }
   pub.collaborateurs = (s.collaborateurs || []).map(c => ({
-    nom: c.nom || '', numero: c.numero || '', tout: !!c.tout, cleSet: !!c.cle
+    id: c.id || '', nom: c.nom || '', numero: c.numero || '', tout: !!c.tout, cleSet: !!c.cle
   }));
   return pub;
 }
@@ -24,20 +25,23 @@ module.exports = async (req, res) => {
          Une exception : quand AUCUN code n'est encore defini, on repond, sans
          quoi la page Configuration ne pourrait pas afficher l'etat initial et
          on ne pourrait jamais definir le premier code. */
-      if (await require('../lib/garde').refuse(req, res)) return;
-      return res.status(200).json({ settings: masquer(s), storageReady: require('../lib/store').configured() });
+      if (await refuse(req, res)) return;
+      /* Dernier envoi du récap (date, échecs par personne) : écrit par la tâche
+         planifiée, il n'était relu nulle part. */
+      const dernierEnvoi = await getJSON('dernierEnvoi', null);
+      return res.status(200).json({ settings: masquer(s), storageReady: require('../lib/store').configured(), dernierEnvoi });
     }
 
     if (req.method === 'POST' || req.method === 'PUT') {
       const body = await readBody(req);
 
-      if (s.adminCode) {
-        const fourni = req.headers['x-admin-code'] || body.adminCodeActuel;
-        if (fourni !== s.adminCode) {
-          return res.status(401).json({ error: 'Code administrateur incorrect' });
-        }
-      }
+      /* Même vérification que partout (code de la base OU code de secours). */
+      if (await refuse(req, res, body)) return;
 
+      /* Lecture, modification et écriture sous verrou : deux enregistrements
+         simultanés de la configuration ne s'écrasent plus. */
+      const resultat = await avecVerrou('settings', async ({ ecrire }) => {
+      const s = await getJSON('settings', {});
       const champs = ['nomEntreprise', 'heureRecap', 'whatsappDest', 'methode', 'callmebotPhone', 'twilioSid', 'twilioFrom'];
       const next = { ...s };
       for (const c of champs) if (c in body) next[c] = (body[c] || '').toString().trim();
@@ -50,17 +54,31 @@ module.exports = async (req, res) => {
       // Collaborateurs : fusion en conservant la clé existante si aucune nouvelle n'est fournie
       if (Array.isArray(body.collaborateurs)) {
         const existing = s.collaborateurs || [];
-        next.collaborateurs = body.collaborateurs
-          .filter(c => c && (c.nom || c.numero))
-          .map(c => {
-            const prev = existing.find(e => e.nom === c.nom);
-            const cle = (c.cle && String(c.cle).trim()) ? String(c.cle).trim() : (prev ? prev.cle : '');
-            return { nom: String(c.nom || '').trim(), numero: String(c.numero || '').trim(), tout: !!c.tout, cle };
-          });
+        const nouveaux = body.collaborateurs.filter(c => c && (c.nom || c.numero));
+        /* Une liste vide qui remplacerait une liste existante est refusée,
+           sauf confirmation : une page chargée à moitié envoyait une liste vide
+           et effaçait tous les destinataires et leurs clés. */
+        if (!nouveaux.length && existing.length && !body.confirmerAucunDestinataire) {
+          return { code: 409, corps: { error: 'La liste des destinataires serait vidée. Rechargez la page Configuration : elle ne s\'est sans doute pas chargée entièrement.' } };
+        }
+        /* Un collaborateur est retrouvé par son identifiant stable, puis par son
+           numéro, puis par son nom : corriger l'orthographe d'un nom ne fait
+           plus perdre sa clé CallMeBot. */
+        const nouvelId = () => 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        next.collaborateurs = nouveaux.map(c => {
+          const numero = String(c.numero || '').trim(), nom = String(c.nom || '').trim();
+          const prev = existing.find(e => c.id && e.id === c.id)
+            || existing.find(e => numero && (e.numero || '').replace(/\s/g, '') === numero.replace(/\s/g, ''))
+            || existing.find(e => e.nom === nom);
+          const cle = (c.cle && String(c.cle).trim()) ? String(c.cle).trim() : (prev ? prev.cle : '');
+          return { id: (prev && prev.id) || c.id || nouvelId(), nom, numero, tout: !!c.tout, cle };
+        });
       }
 
-      await setJSON('settings', next);
-      return res.status(200).json({ ok: true, settings: masquer(next) });
+      await ecrire('settings', next);
+      return { code: 200, corps: { ok: true, settings: masquer(next) } };
+      });
+      return res.status(resultat.code).json(resultat.corps);
     }
 
     res.status(405).json({ error: 'Méthode non autorisée' });

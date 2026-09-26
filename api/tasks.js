@@ -1,5 +1,28 @@
-const { getJSON, setJSON, readBody, avecVerrou } = require('../lib/store');
+const { getJSON, readBody, avecVerrou } = require('../lib/store');
 const { refuse } = require('../lib/garde');
+const { construireRecap } = require('../lib/recap');
+
+/* Version du protocole de la page. Une page plus ancienne est priée de se
+   recharger : elle ne connaît pas les champs ajoutés depuis, et ses envois
+   les effaçaient (constat du 26/09/2026 sur « Résultat » et « Date de
+   réalisation »). À augmenter à chaque changement des champs d'une tâche. */
+const PROTOCOLE = 2;
+
+/* Champs d'une tâche, tous en texte, sauf l'avancement (entier de 0 à 100).
+   Tout autre champ envoyé est ignoré : une valeur de balisage ou un objet dans
+   « état » ou « priorité » s'affichait tel quel dans la page. */
+const CHAMPS_TEXTE = ['tache', 'description', 'comment', 'ressources', 'responsable', 'priorite', 'etat',
+  'debut', 'echeance', 'dateRealisation', 'resultat', 'notes'];
+function champsConnus(src) {
+  const o = {};
+  if (!src || typeof src !== 'object') return o;
+  for (const k of CHAMPS_TEXTE) if (k in src) o[k] = String(src[k] == null ? '' : src[k]).slice(0, 5000);
+  if ('responsable' in o) o.responsable = o.responsable.trim();
+  // Une date est AAAA-MM-JJ ou vide : tout autre texte s'affichait tel quel.
+  for (const k of ['debut', 'echeance', 'dateRealisation']) if (k in o && !/^\d{4}-\d{2}-\d{2}$/.test(o[k])) o[k] = '';
+  if ('progres' in src) o.progres = Math.max(0, Math.min(100, Math.round(Number(src.progres) || 0)));
+  return o;
+}
 
 /* Registre des tâches.
  *
@@ -31,6 +54,13 @@ module.exports = async (req, res) => {
 
     if (req.method === 'GET') {
       const tasks = await getJSON('tasks', []);
+      /* Aperçu du récap : le texte réellement envoyé, construit par la même
+         fonction que l'envoi (la page en écrivait une seconde version). */
+      if (req.query && req.query.apercu !== undefined) {
+        const settings = await getJSON('settings', {});
+        const nom = String(req.query.apercu || '');
+        return res.status(200).json({ texte: construireRecap(tasks, settings, { responsable: nom || null, nomDest: nom }) });
+      }
       return res.status(200).json({ tasks });
     }
 
@@ -49,12 +79,20 @@ module.exports = async (req, res) => {
         });
       }
 
+      if ((Number(body.protocole) || 0) < PROTOCOLE) {
+        return res.status(409).json({
+          rechargerPage: true,
+          error: 'Cette page est une version ancienne de l\'application. '
+            + 'Rechargez-la avant d\'enregistrer : elle effacerait des champs ajoutés depuis.'
+        });
+      }
+
       const action = body.action;
       if (action !== 'enregistrer' && action !== 'supprimer') {
         return res.status(400).json({ error: 'Action inconnue : ' + String(action) });
       }
 
-      const resultat = await avecVerrou('tasks', async () => {
+      const resultat = await avecVerrou('tasks', async ({ ecrire }) => {
         const tasks = await getJSON('tasks', []);
         const id = String((action === 'enregistrer' ? (body.tache || {}).id : body.id) || '');
         if (!id) return { code: 400, corps: { error: 'Tâche sans identifiant.' } };
@@ -85,11 +123,21 @@ module.exports = async (req, res) => {
           return { code: 200, corps: { ok: true, tasks } };
         }
 
+        /* Modifier une tâche que quelqu'un vient de supprimer : on ne la recrée
+           pas sans le dire (elle revenait, avec une nouvelle date de création).
+           La page propose de la recréer ; elle renvoie alors `recreer`. */
+        if (!existante && action === 'enregistrer' && base > 0 && !body.recreer) {
+          return { code: 409, corps: { supprimee: true, tasks } };
+        }
+
         const maintenant = new Date().toISOString();
         if (action === 'supprimer') {
           tasks.splice(i, 1);
         } else {
-          const tache = Object.assign({}, body.tache, {
+          /* Fusion avec la tâche existante : un champ que la page n'envoie pas
+             est GARDÉ. Avant, la tâche entière était remplacée, et un champ
+             inconnu de la page disparaissait. */
+          const tache = Object.assign({}, existante || {}, champsConnus(body.tache), {
             id: id,
             cree: existante ? (existante.cree || maintenant) : maintenant,
             maj: maintenant,                                   // pour l'affichage
@@ -98,7 +146,7 @@ module.exports = async (req, res) => {
           if (existante) tasks[i] = tache; else tasks.push(tache);
         }
 
-        await setJSON('tasks', tasks);
+        await ecrire('tasks', tasks);
         return { code: 200, corps: { ok: true, tasks } };
       });
 

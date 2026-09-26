@@ -33,8 +33,8 @@ Dans le même Data Browser, éditer la clé `settings` et **supprimer la ligne**
 
 ## Pourquoi le code n'est pas dans le dépôt
 
-Le dépôt est privé, mais un secret versionné finit toujours par circuler — dans
-une copie, une capture d'écran, un correctif transmis. Le code vit donc soit
+Le dépôt GitHub est PUBLIC : tout fichier versionné, et tout son historique,
+est lisible par n'importe qui. Le code vit donc soit
 dans la base, soit dans les variables d'environnement Vercel, jamais dans les
 fichiers.
 

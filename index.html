@@ -283,7 +283,13 @@ let collaborateursNoms = [];
 let responsables = [];
 let vueActuelle = (function(){ try{ return localStorage.getItem('vue_taches')||'cartes'; }catch(e){ return 'cartes'; } })();
 const API='/api/tasks';
-function aujourdhui(){ return new Date().toISOString().slice(0,10); }
+/* Date du jour LOCALE : toISOString() donnait la date UTC, une heure de
+   décalage à Libreville (une tâche passait « en retard » à 01 h). */
+function aujourdhui(){ const d=new Date(), p=n=>String(n).padStart(2,'0'); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
+/* Version des échanges avec le serveur : une page plus ancienne est priée de se
+   recharger plutôt que d'effacer des champs qu'elle ne connaît pas. */
+const PROTOCOLE=2;
+const NON_ENREGISTRE='Pas de connexion : rien n\'a été enregistré. Réessayez quand le réseau revient.';
 
 // --- Code d'accès partagé du cabinet (protège le registre des tâches) ---
 // C'est le même code que celui de la page Configuration : il n'y a qu'un
@@ -329,7 +335,9 @@ async function chargerConfigPublique(){
   try{
     const r=await appelApi('/api/settings'); const s=(await r.json()).settings||{};
     if(s.nomEntreprise){ document.getElementById('titreApp').textContent=s.nomEntreprise+' — Gestion des tâches'; document.title=s.nomEntreprise; }
-    if(s.heureRecap){ document.getElementById('sousTitre').textContent='Suivi quotidien · récap WhatsApp automatique à '+s.heureRecap; }
+    /* L'heure saisie en configuration n'a jamais piloté l'envoi : on annonce
+       l'horaire réel de la tâche planifiée. */
+    document.getElementById('sousTitre').textContent='Suivi quotidien · récap WhatsApp automatique chaque matin (entre 7 h et 8 h)';
     collaborateursNoms=(s.collaborateurs||[]).map(c=>c.nom).filter(Boolean);
     recalcResponsables();
   }catch(e){}
@@ -352,13 +360,18 @@ function majResponsables(){
 async function chargerTaches(){
   setBadge('Synchronisation…');
   try{
-    const r=await appelApi(API); if(!r.ok) throw 0;
+    const r=await appelApi(API);
+    if(!r.ok){ const e=new Error('serveur'); e.statut=r.status; throw e; }
     taches=(await r.json()).tasks||[];
-    localStorage.setItem('taches_vize', JSON.stringify(taches));
+    try{ localStorage.setItem('taches_vize', JSON.stringify(taches)); sessionStorage.setItem('gt_vu','1'); }catch(e){}
     setBadge('✓ Synchronisé', true);
   }catch(e){
-    taches=JSON.parse(localStorage.getItem('taches_vize')||'[]');
-    setBadge('Hors-ligne (local)', false);
+    /* La copie locale n'est montrée qu'à qui a passé la porte dans cette
+       session : sur un poste partagé, elle s'affichait sans code. Une erreur
+       du serveur n'est plus présentée comme une coupure réseau. */
+    let copie=[]; try{ copie=sessionStorage.getItem('gt_vu')?JSON.parse(localStorage.getItem('taches_vize')||'[]'):[]; }catch(_){ copie=[]; }
+    taches=copie;
+    setBadge(e&&e.statut?'Erreur du serveur ('+e.statut+') · copie locale':'Hors-ligne · copie locale', false);
   }
   recalcResponsables();
   rendre();
@@ -366,8 +379,14 @@ async function chargerTaches(){
 function setBadge(t,ok){const b=document.getElementById('syncBadge');b.textContent=t;b.style.background=ok===true?'rgba(255,255,255,.30)':(ok===false?'rgba(220,38,38,.5)':'rgba(255,255,255,.2)');}
 function classePriorite(p){return p==='Haute'?'p-haute':p==='Basse'?'p-basse':'p-moyenne';}
 function classeEtat(e){return e==='En cours'?'e-encours':e==='Terminé'?'e-termine':e==='Bloqué'?'e-bloque':'e-afaire';}
-function frDate(d){if(!d)return'—';const[y,m,j]=d.split('-');return `${j}/${m}/${y}`;}
-function esc(s){return (s||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));}
+/* Une date mal formée s'affiche telle quelle, échappée (elle passait dans la page sans filtre). */
+function frDate(d){if(!d)return'—';const s=String(d);if(!/^\d{4}-\d{2}-\d{2}$/.test(s))return esc(s);const[y,m,j]=s.split('-');return `${j}/${m}/${y}`;}
+/* Tout ce qui vient du registre passe par esc(), guillemets compris. Avant,
+   « état », « priorité » et l'avancement s'affichaient tels quels, et une valeur
+   non textuelle vidait tout l'affichage. */
+function esc(s){return String(s==null?'':s).replace(/[<>&"']/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));}
+function jsArg(s){return esc(JSON.stringify(String(s==null?'':s)));}
+function avancement(t){return Math.max(0,Math.min(100,Math.round(Number(t.progres)||0)));}
 function joursEntre(a,b){ const da=new Date(a+'T00:00:00'), db=new Date(b+'T00:00:00'); return Math.max(1, Math.round((db-da)/86400000)); }
 // Statut de l'action : calculé automatiquement, jamais saisi à la main.
 // - Pas de date de réalisation, échéance pas encore dépassée : "En cours".
@@ -375,16 +394,21 @@ function joursEntre(a,b){ const da=new Date(a+'T00:00:00'), db=new Date(b+'T00:0
 // - Date de réalisation renseignée : "Réalisée en avance" / "Réalisée à temps" / "Réalisée en retard" selon sa position par rapport à l'échéance.
 function calculerStatutAction(t){
   const auj=aujourdhui(), ech=t.echeance||'', real=t.dateRealisation||'';
+  /* L'état saisi compte aussi : une tâche « Terminé » sans date de réalisation
+     affichait « En cours – retard de N j », et « À faire » ou « Bloqué »
+     s'affichaient « En cours ». */
+  if(!real && t.etat==='Terminé') return {texte:'Réalisée (date non renseignée)', classe:'e-termine'};
   if(real){
     if(!ech) return {texte:'Réalisée', classe:'e-termine'};
     if(real<ech) return {texte:'Réalisée en avance', classe:'e-termine'};
     if(real>ech) return {texte:'Réalisée en retard', classe:'p-moyenne'};
     return {texte:'Réalisée à temps', classe:'e-termine'};
   }
+  const lib=t.etat==='À faire'?'À faire':t.etat==='Bloqué'?'Bloquée':'En cours';
   if(ech && auj>ech){
-    return {texte:'En cours – retard de '+joursEntre(ech,auj)+' j', classe:'e-bloque'};
+    return {texte:lib+' – retard de '+joursEntre(ech,auj)+' j', classe:'e-bloque'};
   }
-  return {texte:'En cours', classe:'e-encours'};
+  return {texte:lib, classe:t.etat==='Bloqué'?'e-bloque':t.etat==='À faire'?'e-afaire':'e-encours'};
 }
 
 function rendre(){
@@ -424,17 +448,17 @@ function rendreTableau(liste){
       <td class="ta-justify">${esc(t.comment)||'—'}</td>
       <td class="ta-justify">${esc(t.ressources)||'—'}</td>
       <td class="ta-center va-mid">${t.responsable?`<span class="resp">${esc(t.responsable)}</span>`:'—'}</td>
-      <td class="ta-center va-mid"><span class="pill ${classePriorite(t.priorite)}">${t.priorite}</span></td>
+      <td class="ta-center va-mid"><span class="pill ${classePriorite(t.priorite)}">${esc(t.priorite)}</span></td>
       <td class="ta-center va-mid">${frDate(t.debut)}</td>
       <td class="ta-center va-mid">${frDate(t.echeance)}</td>
-      <td class="ta-center va-mid"><span class="pill ${classeEtat(t.etat)}">${t.etat}</span></td>
-      <td class="ta-center va-mid"><div class="prog"><div style="width:${t.progres||0}%"></div></div><small>${t.progres||0}%</small></td>
+      <td class="ta-center va-mid"><span class="pill ${classeEtat(t.etat)}">${esc(t.etat)}</span></td>
+      <td class="ta-center va-mid"><div class="prog"><div style="width:${avancement(t)}%"></div></div><small>${avancement(t)}%</small></td>
       <td class="ta-center va-mid"><span class="pill ${statut.classe}">${statut.texte}</span></td>
       <td class="ta-justify">${esc(t.resultat)||'—'}</td>
       <td class="ta-justify">${esc(t.notes)||'—'}</td>
       <td class="cell-actions ta-center va-mid">
-        <button class="btn-gris" onclick="editer('${t.id}')">Modifier</button>
-        <button class="btn-gris" onclick="supprimer('${t.id}')">🗑</button>
+        <button class="btn-gris" onclick="editer(${jsArg(t.id)})">Modifier</button>
+        <button class="btn-gris" onclick="supprimer(${jsArg(t.id)})">🗑</button>
       </td>`;
     tb.appendChild(tr);
   });
@@ -458,8 +482,8 @@ function rendreCartes(liste){
       <div class="carte-head">
         <strong>${esc(t.tache)}</strong>
         <div class="carte-pills">
-          <span class="pill ${classeEtat(t.etat)}">${t.etat}</span>
-          <span class="pill ${classePriorite(t.priorite)}">${t.priorite}</span>
+          <span class="pill ${classeEtat(t.etat)}">${esc(t.etat)}</span>
+          <span class="pill ${classePriorite(t.priorite)}">${esc(t.priorite)}</span>
           <span class="pill ${statut.classe}">${statut.texte}</span>
         </div>
       </div>
@@ -467,12 +491,12 @@ function rendreCartes(liste){
         ${t.responsable?`<span class="resp">${esc(t.responsable)}</span>`:''}
         <span>${frDate(t.debut)} → ${frDate(t.echeance)}</span>
       </div>
-      <div class="prog"><div style="width:${t.progres||0}%"></div></div>
+      <div class="prog"><div style="width:${avancement(t)}%"></div></div>
       <button class="carte-toggle" onclick="toggleDetails(this)">Détails ▾</button>
       <div class="carte-details" hidden>${details}</div>
       <div class="carte-actions">
-        <button class="btn-gris" onclick="editer('${t.id}')">✏️ Modifier</button>
-        <button class="btn-gris" onclick="supprimer('${t.id}')">🗑 Supprimer</button>
+        <button class="btn-gris" onclick="editer(${jsArg(t.id)})">✏️ Modifier</button>
+        <button class="btn-gris" onclick="supprimer(${jsArg(t.id)})">🗑 Supprimer</button>
       </div>`;
     swipe.innerHTML=`<div class="swipe-bg swipe-bg-left">✅ Terminé</div><div class="swipe-bg swipe-bg-right">⋯ Options</div>`;
     swipe.appendChild(carte);
@@ -520,9 +544,10 @@ function activerGeste(carte, id){
 async function marquerTermine(id){
   const t=taches.find(x=>x.id===id); if(!t) return;
   const base=t.rev||0;
-  const obj=Object.assign({}, t, {etat:'Terminé', progres:100});
+  /* Terminer, c'est aussi dater la réalisation (si elle ne l'est pas déjà). */
+  const obj=Object.assign({}, t, {etat:'Terminé', progres:100, dateRealisation:t.dateRealisation||aujourdhui()});
   try{
-    const r=await appelApi(API,{method:'POST',body:JSON.stringify({action:'enregistrer',tache:obj,base})});
+    const r=await appelApi(API,{method:'POST',body:JSON.stringify({action:'enregistrer',tache:obj,base,protocole:PROTOCOLE})});
     const data=await r.json().catch(()=>({}));
     if(r.ok){
       taches=data.tasks||taches; localStorage.setItem('taches_vize',JSON.stringify(taches));
@@ -530,13 +555,18 @@ async function marquerTermine(id){
     } else if(data.conflit){
       taches=data.tasks||taches; recalcResponsables(); rendre();
       alert('Cette tâche a été modifiée entre-temps par quelqu\'un d\'autre : la liste a été mise à jour, réessayez si besoin.');
+    } else if(data.supprimee){
+      taches=data.tasks||taches; recalcResponsables(); rendre();
+      alert('Cette tâche a été supprimée par quelqu\'un d\'autre entre-temps.');
+    } else if(data.rechargerPage){
+      alert(data.error||'Page à recharger.'); location.reload();
     } else {
       alert(data.error||'Impossible de marquer cette tâche comme terminée.'); rendre();
     }
   }catch(e){
-    const i=taches.findIndex(x=>x.id===id); if(i>=0) taches[i]=obj;
-    localStorage.setItem('taches_vize',JSON.stringify(taches));
-    rendre(); setBadge('Enregistré en local (hors-ligne)', false);
+    /* Plus d'enregistrement « en local » : il n'était jamais renvoyé au serveur
+       et disparaissait au chargement suivant. */
+    rendre(); setBadge('Non enregistré (hors-ligne)', false); alert(NON_ENREGISTRE);
   }
 }
 function ouvrirMenuRapide(id){
@@ -561,7 +591,7 @@ async function validerMenuRapide(){
   const nvEch=document.getElementById('r-echeance').value;
   const obj=Object.assign({}, t, { responsable: nvResp?nvResp:t.responsable, echeance: nvEch });
   try{
-    const r=await appelApi(API,{method:'POST',body:JSON.stringify({action:'enregistrer',tache:obj,base})});
+    const r=await appelApi(API,{method:'POST',body:JSON.stringify({action:'enregistrer',tache:obj,base,protocole:PROTOCOLE})});
     const data=await r.json().catch(()=>({}));
     if(r.ok){
       taches=data.tasks||taches; localStorage.setItem('taches_vize',JSON.stringify(taches));
@@ -572,14 +602,18 @@ async function validerMenuRapide(){
       document.getElementById('rapideOverlay').classList.remove('show');
       alert('Cette tâche a été modifiée entre-temps par quelqu\'un d\'autre. Réessayez.');
       rendre();
+    } else if(data.supprimee){
+      taches=data.tasks||taches; recalcResponsables();
+      document.getElementById('rapideOverlay').classList.remove('show');
+      alert('Cette tâche a été supprimée par quelqu\'un d\'autre entre-temps.');
+      rendre();
+    } else if(data.rechargerPage){
+      alert(data.error||'Page à recharger.'); location.reload();
     } else {
       alert(data.error||'Enregistrement impossible.');
     }
   }catch(e){
-    const i=taches.findIndex(x=>x.id===id); if(i>=0) taches[i]=obj;
-    localStorage.setItem('taches_vize',JSON.stringify(taches));
-    document.getElementById('rapideOverlay').classList.remove('show');
-    rendre(); setBadge('Enregistré en local (hors-ligne)', false);
+    setBadge('Non enregistré (hors-ligne)', false); alert(NON_ENREGISTRE);
   }
 }
 function rendreStats(liste){
@@ -596,7 +630,7 @@ function rendreStats(liste){
     <div class="stat"><div class="n">${termine}</div><div class="l">Terminées</div></div>
     <div class="stat"><div class="n">${bloque}</div><div class="l">Bloquées</div></div>`;
 }
-function ouvrirModal(){document.getElementById('modalTitre').textContent='Nouvelle tâche';
+function ouvrirModal(){origineForm=null;document.getElementById('modalTitre').textContent='Nouvelle tâche';
   ['id','base','tache','description','comment','ressources','resultat','notes'].forEach(k=>document.getElementById('f-'+k).value='');
   majResponsables(); document.getElementById('f-responsable').value='';
   document.getElementById('f-priorite').value='Moyenne';document.getElementById('f-etat').value='À faire';
@@ -605,8 +639,17 @@ function ouvrirModal(){document.getElementById('modalTitre').textContent='Nouvel
   document.getElementById('f-progres').value=0;document.getElementById('overlay').classList.add('show');}
 function fermerModal(){document.getElementById('overlay').classList.remove('show');}
 function autoProgres(){const e=document.getElementById('f-etat').value,p=document.getElementById('f-progres');
+  const dr=document.getElementById('f-realisation'); if(e==='Terminé'&&dr&&!dr.value) dr.value=aujourdhui();
   if(e==='Terminé')p.value=100;else if(e==='À faire')p.value=0;else if(e==='En cours'&&(+p.value===0||+p.value===100))p.value=50;}
-function editer(id){const t=taches.find(x=>x.id===id);if(!t)return;
+/* Copie de la tâche à l'ouverture du formulaire : après un conflit, seuls les
+   champs que l'utilisateur a changés depuis sont réappliqués sur la version du
+   serveur. Avant, un second clic sur « Enregistrer » réécrivait tout le
+   formulaire et effaçait le travail de l'autre personne. */
+let origineForm=null;
+const CHAMPS_FORM={tache:'f-tache',description:'f-description',comment:'f-comment',ressources:'f-ressources',responsable:'f-responsable',
+  priorite:'f-priorite',etat:'f-etat',debut:'f-debut',echeance:'f-echeance',progres:'f-progres',dateRealisation:'f-realisation',resultat:'f-resultat',notes:'f-notes'};
+function valeurChamp(t,k){ return k==='progres'?String(avancement(t)):String(t[k]==null?'':t[k]); }
+function editer(id){const t=taches.find(x=>x.id===id);if(!t)return; origineForm=Object.assign({},t);
   document.getElementById('modalTitre').textContent='Modifier la tâche';
   document.getElementById('f-id').value=t.id;document.getElementById('f-base').value=t.rev||0;
   document.getElementById('f-tache').value=t.tache;
@@ -619,7 +662,7 @@ function editer(id){const t=taches.find(x=>x.id===id);if(!t)return;
   document.getElementById('f-realisation').value=t.dateRealisation||'';
   document.getElementById('f-resultat').value=t.resultat||'';
   document.getElementById('f-notes').value=t.notes||'';document.getElementById('overlay').classList.add('show');}
-async function enregistrer(){
+async function enregistrer(recreer){
   const tache=document.getElementById('f-tache').value.trim();
   if(!tache){alert('Le nom de la tâche est obligatoire.');return;}
   const id=document.getElementById('f-id').value||('t'+Date.now()+Math.random().toString(36).slice(2,7));
@@ -628,36 +671,54 @@ async function enregistrer(){
     description:document.getElementById('f-description').value.trim(),
     comment:document.getElementById('f-comment').value.trim(),
     ressources:document.getElementById('f-ressources').value.trim(),
-    responsable:document.getElementById('f-responsable').value,
+    responsable:document.getElementById('f-responsable').value.trim(),
     priorite:document.getElementById('f-priorite').value,etat:document.getElementById('f-etat').value,
     debut:document.getElementById('f-debut').value,echeance:document.getElementById('f-echeance').value,
     progres:+document.getElementById('f-progres').value||0,
-    dateRealisation:document.getElementById('f-realisation').value,
+    dateRealisation:document.getElementById('f-realisation').value||(document.getElementById('f-etat').value==='Terminé'?aujourdhui():''),
     resultat:document.getElementById('f-resultat').value.trim(),
     notes:document.getElementById('f-notes').value.trim()};
   const btn=document.querySelector('#overlay .modal-actions .btn-vert');
-  if(btn){btn.disabled=true;btn.dataset.txt=btn.textContent;btn.textContent='Enregistrement…';}
+  if(btn){if(!btn.disabled)btn.dataset.txt=btn.textContent;btn.disabled=true;btn.textContent='Enregistrement…';}
   setBadge('Enregistrement…');
   try{
-    const r=await appelApi(API,{method:'POST',body:JSON.stringify({action:'enregistrer',tache:obj,base})});
+    const r=await appelApi(API,{method:'POST',body:JSON.stringify({action:'enregistrer',tache:obj,base,protocole:PROTOCOLE,recreer:!!recreer})});
     const data=await r.json().catch(()=>({}));
     if(r.ok){
       taches=data.tasks||(()=>{const i=taches.findIndex(x=>x.id===obj.id);if(i>=0)taches[i]=obj;else taches.push(obj);return taches;})();
       localStorage.setItem('taches_vize',JSON.stringify(taches));
+      origineForm=null;
       fermerModal();recalcResponsables();rendre();setBadge('✓ Enregistré', true);
     } else if(data.conflit){
       taches=data.tasks||taches; recalcResponsables(); rendre();
-      alert('Quelqu\'un d\'autre a modifié cette tâche entre-temps. La version la plus récente vient d\'être chargée : vérifiez le formulaire et enregistrez à nouveau si besoin.');
-      if(data.tache) document.getElementById('f-base').value=data.tache.rev||0;
+      /* Fusion : la version du serveur, plus les seuls champs modifiés ici. */
+      const serveur=data.tache||{}, origine=origineForm||serveur, deuxCotes=[];
+      Object.keys(CHAMPS_FORM).forEach(k=>{
+        const ici=String(obj[k]==null?'':obj[k]), avant=valeurChamp(origine,k), labas=valeurChamp(serveur,k);
+        const el=document.getElementById(CHAMPS_FORM[k]);
+        if(ici!==avant){ if(labas!==avant && labas!==ici) deuxCotes.push(k); el.value=ici; }
+        else el.value=labas;
+      });
+      origineForm=Object.assign({},serveur);
+      setBadge('Conflit : à relire', false);
+      document.getElementById('f-base').value=serveur.rev||0;
+      const NOMS={tache:'Tâche',description:'Description',comment:'Comment réaliser',ressources:'Ressources',responsable:'Responsable',priorite:'Priorité',etat:'État',debut:'Début',echeance:'Échéance',progres:'Avancement',dateRealisation:'Date de réalisation',resultat:'Résultat',notes:'Notes'};
+      alert('Quelqu\'un d\'autre a modifié cette tâche entre-temps. Le formulaire montre maintenant sa version, avec VOS changements par-dessus.'
+        +(deuxCotes.length?'\n\nModifiés des deux côtés (votre version est affichée, vérifiez) : '+deuxCotes.map(k=>NOMS[k]).join(', ')+'.':'')
+        +'\n\nRelisez, puis enregistrez.');
+    } else if(data.supprimee){
+      taches=data.tasks||taches; recalcResponsables(); rendre();
+      if(confirm('Cette tâche a été supprimée par quelqu\'un d\'autre entre-temps. La recréer avec votre saisie ?')){ await enregistrer(true); return; }
+      fermerModal(); setBadge('✓ Synchronisé', true);
     } else if(data.rechargerPage){
       alert(data.error||'Page à recharger.'); location.reload();
     } else {
       alert(data.error||'Enregistrement impossible.'); setBadge('Échec de l\'enregistrement', false);
     }
   }catch(e){
-    const i=taches.findIndex(x=>x.id===obj.id);if(i>=0)taches[i]=obj;else taches.push(obj);
-    localStorage.setItem('taches_vize',JSON.stringify(taches));
-    fermerModal();recalcResponsables();rendre();setBadge('Enregistré en local (hors-ligne)', false);
+    /* La fenêtre reste ouverte avec la saisie : rien n'est perdu, rien n'est
+       présenté comme enregistré. */
+    setBadge('Non enregistré (hors-ligne)', false); alert(NON_ENREGISTRE);
   } finally {
     if(btn){btn.disabled=false;btn.textContent=btn.dataset.txt||'Enregistrer';}
   }
@@ -666,7 +727,7 @@ async function supprimer(id){
   if(!confirm('Supprimer cette tâche ?'))return;
   const t=taches.find(x=>x.id===id); const base=(t&&t.rev)||0;
   try{
-    const r=await appelApi(API,{method:'POST',body:JSON.stringify({action:'supprimer',id,base})});
+    const r=await appelApi(API,{method:'POST',body:JSON.stringify({action:'supprimer',id,base,protocole:PROTOCOLE})});
     const data=await r.json().catch(()=>({}));
     if(r.ok){
       taches=data.tasks||taches.filter(x=>x.id!==id);
@@ -675,27 +736,26 @@ async function supprimer(id){
     } else if(data.conflit){
       taches=data.tasks||taches; recalcResponsables(); rendre();
       alert('Cette tâche a été modifiée entre-temps par quelqu\'un d\'autre : la suppression a été annulée pour ne rien perdre. La liste a été mise à jour.');
+    } else if(data.rechargerPage){
+      alert(data.error||'Page à recharger.'); location.reload();
     } else {
       alert(data.error||'Suppression impossible.');
     }
   }catch(e){
-    taches=taches.filter(x=>x.id!==id);
-    localStorage.setItem('taches_vize',JSON.stringify(taches));
-    rendre();setBadge('Supprimé en local (hors-ligne)', false);
+    setBadge('Non supprimé (hors-ligne)', false); alert(NON_ENREGISTRE);
   }
 }
-function apercuRecap(){
-  const t=aujourdhui();
+/* L'aperçu montre le texte que le serveur enverrait, construit par la même
+   fonction que l'envoi (la page en écrivait une seconde version, différente). */
+async function apercuRecap(){
   const filtre=document.getElementById('filtreResp').value;
-  const liste=filtre?taches.filter(x=>(x.responsable||'')===filtre):taches;
-  const dujour=liste.filter(x=>x.etat!=='Terminé');
-  if(!liste.length){alert('Aucune tâche.');return;}
-  let txt='*Récap des tâches — '+frDate(t)+'*'+(filtre?(' — '+filtre):'')+'\n\n';
-  (dujour.length?dujour:liste).forEach(x=>{txt+=`• ${x.tache} — ${x.etat} (${x.progres||0}%)${x.priorite==='Haute'?' ⚠️':''}\n`;});
-  const base=dujour.length?dujour:liste;
-  const moy=Math.round(base.reduce((s,x)=>s+(+x.progres||0),0)/base.length);
-  txt+='\nAvancement moyen : '+moy+'%';
-  alert(txt);}
+  try{
+    const r=await appelApi(API+'?apercu='+encodeURIComponent(filtre));
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){ alert(d.error||'Aperçu indisponible.'); return; }
+    alert(d.texte||'Aucune tâche.');
+  }catch(e){ alert('Aperçu indisponible hors connexion.'); }
+}
 chargerConfigPublique();
 chargerTaches();
 
@@ -708,9 +768,13 @@ function installerApp(){
 }
 window.addEventListener('appinstalled', ()=>{ document.getElementById('btnInstall').style.display='none'; });
 function quitterApp(){
-  if(!confirm('Toutes les tâches sont déjà enregistrées automatiquement à chaque modification. Fermer l\'application maintenant ?')) return;
+  if(!confirm('Chaque modification confirmée « ✓ Enregistré » est sur le serveur. Fermer l\'application maintenant ?')) return;
+  /* La copie locale du registre et le code sont effacés : sur un poste partagé,
+     la personne suivante ne doit rien voir sans code. */
+  try{ localStorage.removeItem('taches_vize'); sessionStorage.removeItem('gt_vu'); }catch(e){}
+  oublierCode();
   window.close();
-  setTimeout(()=>{ alert('Vous pouvez fermer cet onglet ou cette fenêtre : tout votre travail est enregistré.'); }, 300);
+  setTimeout(()=>{ alert('Vous pouvez fermer cet onglet ou cette fenêtre.'); }, 300);
 }
 if('serviceWorker' in navigator){ window.addEventListener('load', ()=>navigator.serviceWorker.register('/sw.js').catch(()=>{})); }
 </script>

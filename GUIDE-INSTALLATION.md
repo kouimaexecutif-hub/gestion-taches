@@ -48,6 +48,16 @@ Les colonnes du tableau : **Tâche · Description · Comment réaliser la tâche
 
 > Sans cette étape, l'application fonctionne pour faire un essai, mais les tâches ne sont pas conservées durablement.
 
+## Étape 3 bis — Protéger l'envoi automatique (CRON_SECRET)
+
+Sans ce réglage, n'importe qui peut déclencher le récap du matin en imitant la planification de Vercel.
+
+1. Dans Vercel, ouvrir le projet → **Settings** → **Environment Variables**.
+2. Ajouter une variable nommée `CRON_SECRET`, avec pour valeur une longue suite de lettres et de chiffres inventée pour l'occasion (au moins 16 caractères), cochée pour **Production**.
+3. **Deployments** → dernier déploiement → **Redeploy**.
+
+Vercel envoie ensuite lui-même ce secret à chaque déclenchement. La page Configuration affiche « À faire : définir CRON_SECRET » tant que la variable manque.
+
 ## Étape 4 — Choisir la méthode d'envoi WhatsApp
 
 L'application propose deux méthodes (à choisir dans la page Configuration) :
@@ -83,7 +93,8 @@ C'est terminé : chaque matin à 07h00, le récap part automatiquement.
 L'application est faite pour que chacun mette à jour l'avancement et les justificatifs de ses propres tâches, comme sur un classeur partagé. Deux points à connaître :
 
 - **Deux personnes sur des tâches différentes ne se gênent pas.** Enregistrer n'envoie que la tâche modifiée ; le serveur l'insère lui-même dans le registre. Jusqu'au 01/09/2026, c'est la liste entière qui était envoyée et qui remplaçait celle du serveur : la seconde personne à enregistrer effaçait le travail de la première, sans message.
-- **Deux personnes sur la même tâche sont départagées.** La seconde voit son enregistrement refusé, la version du serveur s'affiche, et sa fenêtre de saisie reste ouverte pour qu'elle reprenne sa modification par-dessus. Rien n'est écrasé en silence.
+- **Deux personnes sur la même tâche sont départagées.** La seconde voit son enregistrement refusé. Sa fenêtre reste ouverte et montre la version de l'autre personne, avec ses propres changements reportés par-dessus ; les champs modifiés des deux côtés sont nommés dans le message. Elle relit, puis enregistre. Si la tâche a été supprimée entre-temps, la page demande s'il faut la recréer.
+- **Hors connexion, rien n'est enregistré.** Le message le dit et la saisie reste à l'écran. Jusqu'au 26/09/2026, la page annonçait « Enregistré en local » et la modification disparaissait au chargement suivant.
 
 > **Si un collaborateur voit « Cette page est une version ancienne de l'application »** : sa page est restée ouverte depuis avant cette correction. Elle se recharge d'elle-même ; il n'y a rien d'autre à faire.
 
@@ -96,4 +107,4 @@ Il n'y a **pas de comptes individuels** : un seul code d'accès, partagé. Le re
 - **Aucune ligne de code à modifier** pour un nouveau client : il déploie le dossier, puis remplit la page Configuration.
 - Les secrets (jeton Twilio, code admin) ne sont **jamais** renvoyés au navigateur.
 - Le bac à sable Twilio est gratuit mais limité (le destinataire doit avoir rejoint le sandbox). Pour un usage professionnel sans restriction, activer un **numéro WhatsApp Business** payant chez Twilio — la configuration dans l'application reste identique.
-- L'heure d'envoi (07h00, heure du Gabon = 06h00 UTC) est dans `vercel.json`. Pour une autre heure, modifier la ligne `"schedule"` (format `minute heure * * *`, en UTC) et redéployer.
+- L'heure d'envoi (07h00, heure du Gabon = 06h00 UTC) est dans `vercel.json`. Sur l'offre gratuite de Vercel, l'envoi part dans l'heure qui suit, donc entre 7 h et 8 h. Le champ « Heure du récap » de la configuration n'a aucun effet. Pour une autre heure, modifier la ligne `"schedule"` (format `minute heure * * *`, en UTC) et redéployer.

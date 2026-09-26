@@ -5,6 +5,28 @@
       "schedule": "0 6 * * *"
     }
   ],
+  "redirects": [
+    {
+      "source": "/lib/:chemin*",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/:doc(.*)\\.md",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/package.json",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/couleurs-acceptees.txt",
+      "destination": "/",
+      "permanent": false
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
